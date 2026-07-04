@@ -1,8 +1,9 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, HelpCircle, Search, ChevronDown } from 'lucide-react'
+import { Bell, HelpCircle, Search, ChevronDown, LogOut } from 'lucide-react'
+import { useStore } from '@/lib/store'
 
 const breadcrumbs: Record<string, { parent?: string; parentHref?: string; label: string }> = {
   '/dashboard':       { label: 'Dashboard' },
@@ -21,7 +22,18 @@ const breadcrumbs: Record<string, { parent?: string; parentHref?: string; label:
 
 export function Topbar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { currentUser, setCurrentUser } = useStore()
   const crumb = breadcrumbs[pathname] ?? { label: '' }
+
+  function initiales(nombre: string) {
+    return nombre.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+  }
+
+  function handleLogout() {
+    setCurrentUser(null)
+    router.push('/login')
+  }
 
   return (
     <header style={{ height: 56, background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}
@@ -67,12 +79,19 @@ export function Topbar() {
           className="hover:bg-gray-50">
           <HelpCircle style={{ width: 20, height: 20 }} />
         </button>
-        <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1.5 ml-1">
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1A56DB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>JC</span>
+        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 ml-1">
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: currentUser?.foto ? 'transparent' : '#1A56DB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            {currentUser?.foto
+              ? <img src={currentUser.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{initiales(currentUser?.nombre ?? 'U')}</span>
+            }
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>Juan Camilo</span>
-          <ChevronDown style={{ width: 14, height: 14, color: '#9CA3AF' }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{currentUser?.nombre?.split(' ')[0] ?? ''}</span>
+          <button onClick={handleLogout} title="Cerrar sesión"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 6 }}
+            className="hover:bg-gray-100">
+            <LogOut style={{ width: 14, height: 14 }} />
+          </button>
         </div>
       </div>
     </header>

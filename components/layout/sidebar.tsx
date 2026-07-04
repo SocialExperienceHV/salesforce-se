@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, Search,
   FolderOpen, TrendingUp, Layers, Calendar,
-  List, BarChart3, Settings, ChevronLeft
+  List, BarChart3, Settings, ChevronLeft, Wallet
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +17,8 @@ const navItems = [
   { href: '/trafico',       label: 'Tráfico',          icon: Layers },
   { href: '/calendar',      label: 'Calendar',         icon: Calendar },
   { href: '/plan-trabajo',  label: 'Plan de trabajo',  icon: List },
-  { href: '/personas',      label: 'Personas',         icon: Users },
+  { href: '/nomina',        label: 'Nómina',            icon: Wallet },
+  { href: '/personas',      label: 'Equipo',            icon: Users },
   { href: '/prospeccion',   label: 'Prospección',      icon: Search },
   { href: '/reportes',      label: 'Reportes',         icon: BarChart3 },
   { href: '/administracion',label: 'Administración',   icon: Settings },

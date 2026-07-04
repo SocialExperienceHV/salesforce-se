@@ -9,9 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useStore } from '@/lib/store'
-
-
-const ejecutivos = ['Juan Camilo', 'María Torres', 'Laura Medina', 'David Ruiz', 'Hans Vargas', 'Felipe Aguilón', 'Iván Londoño']
 const tiposProyecto = ['Evento 360', 'Logística', 'Activación', 'Experiencias', 'Convención', 'Escenografía/Feria', 'Técnica', 'Litografía', 'Digital', 'Estrategia', 'Otros']
 
 const meses = [
@@ -21,7 +18,10 @@ const meses = [
 
 export default function NuevoProyectoPage() {
   const router = useRouter()
-  const { addProyecto, clientes: clientesStore } = useStore()
+  const { addProyecto, clientes: clientesStore, personasStore } = useStore()
+
+  // Solo personas del área Comercial (KAMs)
+  const kams = personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)
   const [cliente, setCliente] = useState('')
   const [subcliente, setSubcliente] = useState('')
   const [ejecutivo, setEjecutivo] = useState('')
@@ -122,11 +122,11 @@ export default function NuevoProyectoPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Ejecutivo / KAM</Label>
+              <Label className="text-xs">KAM</Label>
               <Select value={ejecutivo} onValueChange={(v) => v && setEjecutivo(v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar KAM..." /></SelectTrigger>
                 <SelectContent>
-                  {ejecutivos.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  {kams.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

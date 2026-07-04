@@ -1,216 +1,416 @@
 'use client'
 
-import { useState } from 'react'
-import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, MoreHorizontal, Download, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { useState, useMemo } from 'react'
+import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown } from 'lucide-react'
+import { useStore } from '@/lib/store'
 
-const prospectos = [
-  { id: 1, empresa: 'Banco Falabella', iniciales: 'BF', color: '#16a34a', contacto: 'María Fernanda López', email: 'mlopez@bancofalabella.com.co', cargo: 'Gerente de Mercadeo', comercial: 'Hans Vargas', origen: 'LinkedIn', fase: 'Credenciales enviadas', ultimoContacto: '22/05/2024', tipoUltimo: 'Llamada', proximoSeguimiento: '27/05/2024', tipoProximo: 'Llamada' },
-  { id: 2, empresa: 'Colsubsidio', iniciales: 'CS', color: '#7c3aed', contacto: 'Carlos Andrés Cárdenas', email: 'ccardenas@colsubsidio.com', cargo: 'Jefe de Comunicaciones', comercial: 'Felipe Aguilón', origen: 'Referido', fase: 'Credenciales presentadas', ultimoContacto: '20/05/2024', tipoUltimo: 'Reunión virtual', proximoSeguimiento: '28/05/2024', tipoProximo: 'Enviar propuesta' },
-  { id: 3, empresa: 'Homecenter', iniciales: 'HC', color: '#f97316', contacto: 'Laura Gómez', email: 'lgomez@homecenter.com.co', cargo: 'Coordinadora de Marca', comercial: 'Iván Londoño', origen: 'Pauta', fase: 'Inscripción como proveedor', ultimoContacto: '21/05/2024', tipoUltimo: 'Correo', proximoSeguimiento: '29/05/2024', tipoProximo: 'Confirmar registro' },
-  { id: 4, empresa: 'Grupo Éxito', iniciales: 'GÉ', color: '#e53935', contacto: 'Juan Pablo Restrepo', email: 'jrestrepo@grupoexito.com.co', cargo: 'Gerente de Marca', comercial: 'Hans Vargas', origen: 'Llamada en frío', fase: 'Brief recibido', ultimoContacto: '23/05/2024', tipoUltimo: 'Reunión presencial', proximoSeguimiento: '30/05/2024', tipoProximo: 'Enviar propuesta' },
-  { id: 5, empresa: 'PepsiCo', iniciales: 'PP', color: '#2563eb', contacto: 'Daniela Arango', email: 'darango@pepsico.com', cargo: 'Brand Manager', comercial: 'Felipe Aguilón', origen: 'Evento / Networking', fase: 'Proyecto creado', ultimoContacto: '24/05/2024', tipoUltimo: 'Reunión presencial', proximoSeguimiento: '—', tipoProximo: 'Completado' },
-  { id: 6, empresa: 'Bavaria', iniciales: 'BV', color: '#b91c1c', contacto: 'Santiago Morales', email: 'smorales@bavaria.com.co', cargo: 'Coordinador de Trade', comercial: 'Iván Londoño', origen: 'LinkedIn', fase: 'No avanza / descartado', ultimoContacto: '15/05/2024', tipoUltimo: 'Llamada', proximoSeguimiento: '—', tipoProximo: 'Sin interés' },
-]
+// ─── Constantes ────────────────────────────────────────────────────────────────
+const FASES = [
+  'Contacto Digital',
+  'Credenciales Enviadas',
+  'Credenciales Presentadas',
+  'Brief Recibido',
+  'Propuesta Presentada',
+  'Propuesta Aprobada',
+  'Inscripción Proveedor',
+  'No avanza / Descartado',
+] as const
 
-const faseConfig: Record<string, { label: string; className: string }> = {
-  'Credenciales enviadas':      { label: 'Credenciales enviadas',      className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  'Credenciales presentadas':   { label: 'Credenciales presentadas',   className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  'Inscripción como proveedor': { label: 'Inscripción como proveedor', className: 'bg-purple-50 text-purple-700 border-purple-200' },
-  'Brief recibido':             { label: 'Brief recibido',             className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  'Proyecto creado':            { label: 'Proyecto creado',            className: 'bg-green-50 text-green-700 border-green-200' },
-  'No avanza / descartado':     { label: 'No avanza / descartado',     className: 'bg-gray-100 text-gray-500 border-gray-200' },
+const FASE_STYLE: Record<string, { bg: string; color: string }> = {
+  'Contacto Digital':         { bg: '#EFF6FF', color: '#1D4ED8' },
+  'Credenciales Enviadas':    { bg: '#EEF2FF', color: '#4338CA' },
+  'Credenciales Presentadas': { bg: '#F5F3FF', color: '#6D28D9' },
+  'Brief Recibido':           { bg: '#FFFBEB', color: '#B45309' },
+  'Propuesta Presentada':     { bg: '#FFF7ED', color: '#C2410C' },
+  'Propuesta Aprobada':       { bg: '#F0FDF4', color: '#065F46' },
+  'Inscripción Proveedor':    { bg: '#F0FDF4', color: '#166534' },
+  'No avanza / Descartado':   { bg: '#F9FAFB', color: '#6B7280' },
 }
 
-const fases = ['Todos', ...Object.keys(faseConfig)]
-const origenes = ['Todos', 'LinkedIn', 'Referido', 'Pauta', 'Llamada en frío', 'Evento / Networking']
-const comerciales = ['Todos', 'Hans Vargas', 'Felipe Aguilón', 'Iván Londoño']
+const PRIMER_CONTACTO_OPTIONS = ['Hans Vargas', 'Felipe Aguilón', 'Iván Londoño', 'David Novoa']
+const ORIGENES = ['LinkedIn', 'Referido', 'Pauta', 'Llamada en frío', 'Evento / Networking', 'Otro']
 
-export default function ProspeccionPage() {
-  const [search, setSearch] = useState('')
-  const [fase, setFase] = useState('Todos')
-  const [origen, setOrigen] = useState('Todos')
-  const [comercial, setComercial] = useState('Todos')
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function formatFecha(iso: string) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+function todayISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 
-  const filtered = prospectos.filter(p => {
-    const matchSearch = p.empresa.toLowerCase().includes(search.toLowerCase()) || p.contacto.toLowerCase().includes(search.toLowerCase())
-    const matchFase = fase === 'Todos' || p.fase === fase
-    const matchOrigen = origen === 'Todos' || p.origen === origen
-    const matchComercial = comercial === 'Todos' || p.comercial === comercial
-    return matchSearch && matchFase && matchOrigen && matchComercial
-  })
+// ─── Celda inline select ────────────────────────────────────────────────────────
+function InlineSelect({ value, options, placeholder, onChange, badge, badgeStyle }: {
+  value: string; options: string[]; placeholder: string; onChange: (v: string) => void
+  badge?: boolean; badgeStyle?: { bg: string; color: string }
+}) {
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <select
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          appearance: 'none', border: 'none', background: badge && badgeStyle ? badgeStyle.bg : 'transparent',
+          color: badge && badgeStyle ? badgeStyle.color : '#374151',
+          fontSize: badge ? 11 : 13, fontWeight: badge ? 600 : 400,
+          padding: badge ? '3px 22px 3px 8px' : '0 18px 0 0',
+          borderRadius: badge ? 20 : 4,
+          cursor: 'pointer', outline: 'none', maxWidth: badge ? 170 : 140,
+        }}>
+        {!value && <option value="">{placeholder}</option>}
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <ChevronDown style={{ width: 10, height: 10, position: 'absolute', right: badge ? 5 : 2, color: badge && badgeStyle ? badgeStyle.color : '#9CA3AF', pointerEvents: 'none', flexShrink: 0 }} />
+    </div>
+  )
+}
+
+// ─── Celda fecha + texto editable ──────────────────────────────────────────────
+function FechaTextoCell({ fecha, texto, onSave }: {
+  fecha: string; texto: string; onSave: (fecha: string, texto: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [f, setF] = useState(fecha)
+  const [t, setT] = useState(texto)
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+        <input type="date" value={f} onChange={e => setF(e.target.value)}
+          style={{ fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 5, padding: '3px 6px', color: '#111827', outline: 'none' }} />
+        <textarea value={t} onChange={e => setT(e.target.value)} rows={2}
+          style={{ fontSize: 11, border: '1px solid #D1D5DB', borderRadius: 5, padding: '3px 6px', color: '#374151', resize: 'none', outline: 'none', lineHeight: 1.4 }} />
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={() => { onSave(f, t); setEditing(false) }}
+            style={{ flex: 1, fontSize: 11, padding: '3px 6px', background: '#1A56DB', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}>
+            Guardar
+          </button>
+          <button onClick={() => { setF(fecha); setT(texto); setEditing(false) }}
+            style={{ flex: 1, fontSize: 11, padding: '3px 6px', background: '#F3F4F6', color: '#6B7280', border: 'none', borderRadius: 5, cursor: 'pointer' }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6 flex flex-col gap-5">
-      <div className="flex items-start justify-between">
+    <div onClick={() => { setF(fecha); setT(texto); setEditing(true) }}
+      style={{ cursor: 'pointer', borderRadius: 6, padding: '2px 4px', margin: '-2px -4px' }}
+      onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB' }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: fecha ? '#111827' : '#D1D5DB' }}>
+        {fecha ? formatFecha(fecha) : 'Sin fecha'}
+      </div>
+      {texto && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1, maxWidth: 180, lineHeight: 1.3 }}>{texto}</div>}
+      {!texto && <div style={{ fontSize: 11, color: '#D1D5DB' }}>Agregar nota...</div>}
+    </div>
+  )
+}
+
+// ─── Modal Nuevo Prospecto ──────────────────────────────────────────────────────
+function NuevoProspectoModal({ onClose, kams }: { onClose: () => void; kams: string[] }) {
+  const { addProspecto } = useStore()
+  const [form, setForm] = useState({
+    empresa: '', contacto: '', email: '', cargo: '', origen: '',
+    primerContactoPersona: '', comercial: '', fase: 'Contacto Digital',
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.empresa.trim()) return
+    addProspecto({ ...form, valor: 0, notas: '', ultimoContactoFecha: todayISO(), ultimoContactoTexto: 'Prospecto creado.', proximoSeguimientoFecha: '', proximoSeguimientoTexto: '' })
+    onClose()
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 36, border: '1px solid #E5E7EB', borderRadius: 7, padding: '0 10px', fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }
+  const sel: React.CSSProperties = { ...inp, appearance: 'none', cursor: 'pointer',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 9px center', paddingRight: 28 }
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, display: 'block' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#111827', marginBottom: 20 }}>Nuevo prospecto</div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>Empresa *</label>
+              <input required value={form.empresa} onChange={e => setForm(f => ({...f, empresa: e.target.value}))} placeholder="Nombre de la empresa" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Contacto</label>
+              <input value={form.contacto} onChange={e => setForm(f => ({...f, contacto: e.target.value}))} placeholder="Nombre del contacto" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <input value={form.cargo} onChange={e => setForm(f => ({...f, cargo: e.target.value}))} placeholder="Cargo del contacto" style={inp} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>Email</label>
+              <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} placeholder="correo@empresa.com" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Primer contacto (persona)</label>
+              <select value={form.primerContactoPersona} onChange={e => setForm(f => ({...f, primerContactoPersona: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {PRIMER_CONTACTO_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Comercial</label>
+              <select value={form.comercial} onChange={e => setForm(f => ({...f, comercial: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {kams.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Origen</label>
+              <select value={form.origen} onChange={e => setForm(f => ({...f, origen: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {ORIGENES.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Fase inicial</label>
+              <select value={form.fase} onChange={e => setForm(f => ({...f, fase: e.target.value}))} style={sel}>
+                {FASES.map(f => <option key={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, height: 38, border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 500, color: '#374151', background: '#fff', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+            <button type="submit"
+              style={{ flex: 1, height: 38, background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+              Crear prospecto
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ───────────────────────────────────────────────────────────────────────
+export default function ProspeccionPage() {
+  const { prospectos, updateProspecto, personasStore } = useStore()
+  const kams = useMemo(() => personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre), [personasStore])
+
+  const [search, setSearch] = useState('')
+  const [filtroFase, setFiltroFase] = useState('Todos')
+  const [filtroComercial, setFiltroComercial] = useState('Todos')
+  const [showModal, setShowModal] = useState(false)
+
+  const filtered = useMemo(() => prospectos.filter(p => {
+    if (search && !p.empresa.toLowerCase().includes(search.toLowerCase()) && !(p.contacto ?? '').toLowerCase().includes(search.toLowerCase())) return false
+    if (filtroFase !== 'Todos' && p.fase !== filtroFase) return false
+    if (filtroComercial !== 'Todos' && p.comercial !== filtroComercial) return false
+    return true
+  }), [prospectos, search, filtroFase, filtroComercial])
+
+  // KPIs
+  const activos   = prospectos.filter(p => p.fase !== 'No avanza / Descartado').length
+  const nuevos    = prospectos.filter(p => p.createdAt >= todayISO().substring(0, 7)).length
+  const credEnv   = prospectos.filter(p => p.fase === 'Credenciales Enviadas').length
+  const briefs    = prospectos.filter(p => p.fase === 'Brief Recibido').length
+  const aprobados = prospectos.filter(p => p.fase === 'Propuesta Aprobada').length
+  const descar    = prospectos.filter(p => p.fase === 'No avanza / Descartado').length
+
+  const sel: React.CSSProperties = {
+    height: 34, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 7,
+    fontSize: 13, color: '#374151', background: '#fff', outline: 'none', cursor: 'pointer',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 9px center', paddingRight: 28,
+  }
+
+  const th: React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#9CA3AF', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }
+  const td: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid #F3F4F6', verticalAlign: 'top' }
+
+  return (
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, height: '100%', overflowY: 'auto', boxSizing: 'border-box' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="text-2xl font-medium text-foreground">Prospección Comercial</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestiona el pipeline de nuevos clientes potenciales y haz seguimiento a cada etapa.
-          </p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>Prospección Comercial</h1>
+          <p style={{ fontSize: 14, color: '#6B7280', margin: '4px 0 0' }}>Gestiona el pipeline de nuevos clientes potenciales.</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-          <Plus className="w-4 h-4" />
+        <button onClick={() => setShowModal(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+          <Plus style={{ width: 15, height: 15 }} />
           Nuevo prospecto
-        </Button>
+        </button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-6 gap-3">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
         {[
-          { label: 'Prospectos activos', value: 48, icon: Users, bg: 'bg-purple-50', color: 'text-purple-600' },
-          { label: 'Nuevos este mes', value: 16, icon: UserPlus, bg: 'bg-green-50', color: 'text-green-600' },
-          { label: 'Credenciales enviadas', value: 12, icon: Mail, bg: 'bg-amber-50', color: 'text-amber-600' },
-          { label: 'Briefs recibidos', value: 6, icon: FileText, bg: 'bg-indigo-50', color: 'text-indigo-600' },
-          { label: 'Convertidos a proyecto', value: 4, icon: CheckCircle, bg: 'bg-green-50', color: 'text-green-600' },
-          { label: 'Descartados', value: 7, icon: XCircle, bg: 'bg-red-50', color: 'text-red-600' },
-        ].map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="border border-border rounded-lg p-3 bg-card">
-            <div className="text-xs text-muted-foreground mb-2">{label}</div>
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
-                <Icon className={`w-4 h-4 ${color}`} />
+          { label: 'Prospectos activos',       value: activos,   Icon: Users,       bg: '#F5F3FF', color: '#7C3AED' },
+          { label: 'Nuevos este mes',           value: nuevos,    Icon: UserPlus,    bg: '#F0FDF4', color: '#059669' },
+          { label: 'Credenciales enviadas',     value: credEnv,   Icon: Mail,        bg: '#FFFBEB', color: '#B45309' },
+          { label: 'Briefs recibidos',          value: briefs,    Icon: FileText,    bg: '#EEF2FF', color: '#4338CA' },
+          { label: 'Propuestas aprobadas',      value: aprobados, Icon: CheckCircle, bg: '#F0FDF4', color: '#065F46' },
+          { label: 'Descartados',               value: descar,    Icon: XCircle,     bg: '#FFF1F2', color: '#BE123C' },
+        ].map(({ label, value, Icon, bg, color }) => (
+          <div key={label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>{label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon style={{ width: 16, height: 16, color }} />
               </div>
-              <span className="text-2xl font-medium">{value}</span>
+              <span style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{value}</span>
             </div>
-            <button className="text-xs text-blue-600 mt-2 flex items-center gap-1 hover:underline">
-              Ver detalle →
-            </button>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Select value={comercial} onValueChange={(v) => v && setComercial(v)}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Comercial" /></SelectTrigger>
-          <SelectContent>{comerciales.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={origen} onValueChange={(v) => v && setOrigen(v)}>
-          <SelectTrigger className="w-48 h-9 text-sm"><SelectValue placeholder="Origen del lead" /></SelectTrigger>
-          <SelectContent>{origenes.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={fase} onValueChange={(v) => v && setFase(v)}>
-          <SelectTrigger className="w-52 h-9 text-sm"><SelectValue placeholder="Fase" /></SelectTrigger>
-          <SelectContent>{fases.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-        </Select>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar empresa..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-52 text-sm" />
+      {/* Filtros */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative' }}>
+          <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9CA3AF' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa o contacto..."
+            style={{ height: 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', outline: 'none', width: 220 }} />
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs"
-            onClick={() => { setSearch(''); setFase('Todos'); setOrigen('Todos'); setComercial('Todos') }}>
-            <RefreshCw className="w-3.5 h-3.5" /> Limpiar filtros
-          </Button>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs"
-            onClick={() => alert('Exportar: funcionalidad disponible cuando se conecte Supabase.')}>
-            <Download className="w-3.5 h-3.5" /> Exportar
-          </Button>
+        <select value={filtroFase} onChange={e => setFiltroFase(e.target.value)} style={{ ...sel, minWidth: 180 }}>
+          <option value="Todos">Todas las fases</option>
+          {FASES.map(f => <option key={f}>{f}</option>)}
+        </select>
+        <select value={filtroComercial} onChange={e => setFiltroComercial(e.target.value)} style={{ ...sel, minWidth: 140 }}>
+          <option value="Todos">Todo el equipo</option>
+          {kams.map(k => <option key={k}>{k}</option>)}
+        </select>
+        <button onClick={() => { setSearch(''); setFiltroFase('Todos'); setFiltroComercial('Todos') }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#6B7280', background: '#fff', cursor: 'pointer' }}>
+          <RefreshCw style={{ width: 12, height: 12 }} /> Limpiar
+        </button>
+        <button style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#6B7280', background: '#fff', cursor: 'pointer', marginLeft: 'auto' }}>
+          <Download style={{ width: 12, height: 12 }} /> Exportar
+        </button>
+      </div>
+
+      {/* Tabla */}
+      <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
+            <thead>
+              <tr>
+                <th style={th}>Empresa</th>
+                <th style={th}>Contacto</th>
+                <th style={th}>Cargo</th>
+                <th style={th}>Primer contacto</th>
+                <th style={th}>Comercial</th>
+                <th style={th}>Origen</th>
+                <th style={th}>Fase</th>
+                <th style={{ ...th, whiteSpace: 'normal', lineHeight: 1.3 }}>Fecha primer<br/>contacto</th>
+                <th style={th}>Último contacto</th>
+                <th style={th}>Próximo seguimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ ...td, textAlign: 'center', color: '#9CA3AF', padding: '40px 20px' }}>
+                    No hay prospectos que coincidan con los filtros.
+                  </td>
+                </tr>
+              ) : filtered.map(p => {
+                const fStyle = FASE_STYLE[p.fase] ?? { bg: '#F9FAFB', color: '#6B7280' }
+                return (
+                  <tr key={p.id} style={{ transition: 'background 0.1s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#FAFAFA')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}>
+
+                    {/* Empresa — solo nombre, sin avatar */}
+                    <td style={td}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{p.empresa}</span>
+                    </td>
+
+                    {/* Contacto */}
+                    <td style={td}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{p.contacto || '—'}</div>
+                      {p.email && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }}>{p.email}</div>}
+                    </td>
+
+                    {/* Cargo */}
+                    <td style={{ ...td, fontSize: 12, color: '#6B7280' }}>{p.cargo || '—'}</td>
+
+                    {/* Primer contacto (persona) */}
+                    <td style={td}>
+                      <InlineSelect
+                        value={p.primerContactoPersona ?? ''}
+                        options={PRIMER_CONTACTO_OPTIONS}
+                        placeholder="Seleccionar..."
+                        onChange={v => updateProspecto(p.id, { primerContactoPersona: v })}
+                      />
+                    </td>
+
+                    {/* Comercial (del equipo) */}
+                    <td style={td}>
+                      <InlineSelect
+                        value={p.comercial ?? ''}
+                        options={kams}
+                        placeholder="Seleccionar..."
+                        onChange={v => updateProspecto(p.id, { comercial: v })}
+                      />
+                    </td>
+
+                    {/* Origen */}
+                    <td style={{ ...td, fontSize: 12, color: '#6B7280' }}>{p.origen || '—'}</td>
+
+                    {/* Fase */}
+                    <td style={td}>
+                      <InlineSelect
+                        value={p.fase}
+                        options={[...FASES]}
+                        placeholder=""
+                        onChange={v => updateProspecto(p.id, { fase: v })}
+                        badge
+                        badgeStyle={fStyle}
+                      />
+                    </td>
+
+                    {/* Fecha primer contacto (auto) */}
+                    <td style={{ ...td, fontSize: 12, color: '#6B7280' }}>
+                      {formatFecha(p.createdAt?.substring(0, 10) ?? '')}
+                    </td>
+
+                    {/* Último contacto */}
+                    <td style={td}>
+                      <FechaTextoCell
+                        fecha={p.ultimoContactoFecha ?? ''}
+                        texto={p.ultimoContactoTexto ?? ''}
+                        onSave={(fecha, texto) => updateProspecto(p.id, { ultimoContactoFecha: fecha, ultimoContactoTexto: texto })}
+                      />
+                    </td>
+
+                    {/* Próximo seguimiento */}
+                    <td style={td}>
+                      <FechaTextoCell
+                        fecha={p.proximoSeguimientoFecha ?? ''}
+                        texto={p.proximoSeguimientoTexto ?? ''}
+                        onSave={(fecha, texto) => updateProspecto(p.id, { proximoSeguimientoFecha: fecha, proximoSeguimientoTexto: texto })}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="text-xs font-medium">Empresa</TableHead>
-              <TableHead className="text-xs font-medium">Contacto</TableHead>
-              <TableHead className="text-xs font-medium">Cargo</TableHead>
-              <TableHead className="text-xs font-medium">Comercial</TableHead>
-              <TableHead className="text-xs font-medium">Origen</TableHead>
-              <TableHead className="text-xs font-medium">Fase</TableHead>
-              <TableHead className="text-xs font-medium">Último contacto</TableHead>
-              <TableHead className="text-xs font-medium">Próximo seguimiento</TableHead>
-              <TableHead className="text-xs font-medium">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map(p => {
-              const faseStyle = faseConfig[p.fase]
-              return (
-                <TableRow key={p.id} className="hover:bg-muted/30">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-xs font-medium text-white" style={{ backgroundColor: p.color }}>
-                          {p.iniciales}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium">{p.empresa}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm font-medium">{p.contacto}</div>
-                    <div className="text-xs text-muted-foreground">{p.email}</div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{p.cargo}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-6 h-6">
-                        <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                          {p.comercial.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm">{p.comercial}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{p.origen}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${faseStyle.className}`}>
-                      {faseStyle.label}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">{p.ultimoContacto}</div>
-                    <div className="text-xs text-muted-foreground">{p.tipoUltimo}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">{p.proximoSeguimiento}</div>
-                    <div className="text-xs text-muted-foreground">{p.tipoProximo}</div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Ver detalle</DropdownMenuItem>
-                        <DropdownMenuItem>Registrar contacto</DropdownMenuItem>
-                        <DropdownMenuItem>Cambiar fase</DropdownMenuItem>
-                        <DropdownMenuItem>Convertir a cliente</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">Descartar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+      <div style={{ fontSize: 13, color: '#9CA3AF' }}>
+        Mostrando {filtered.length} de {prospectos.length} prospectos
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Mostrando 1 a {filtered.length} de 48 prospectos
-        </div>
-        <div className="flex items-center gap-1">
-          {['Anterior', '1', '2', '3', '4', '5', 'Siguiente'].map((p) => (
-            <Button key={p} variant={p === '1' ? 'default' : 'outline'} size="sm"
-              className={`h-8 min-w-8 text-xs px-2.5 ${p === '1' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}>
-              {p}
-            </Button>
-          ))}
-        </div>
-      </div>
+      {showModal && <NuevoProspectoModal onClose={() => setShowModal(false)} kams={kams} />}
     </div>
   )
 }

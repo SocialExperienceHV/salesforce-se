@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Folder, DollarSign, ShoppingCart, XCircle, Target, ChevronLeft, ChevronRight, Search, MoreHorizontal, X, TrendingUp, Pencil, Check } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Folder, DollarSign, ShoppingCart, XCircle, Target, ChevronLeft, ChevronRight, Search, MoreHorizontal, X, TrendingUp, Pencil, Check, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { Proyecto } from '@/lib/store'
 
@@ -195,7 +195,44 @@ function DetallePanel({ p, clientes, onClose }: { p: Proyecto; clientes: { nombr
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function SeguimientoPage() {
-  const { proyectos, clientes: clientesStore, updateProyecto } = useStore()
+  const { proyectos, clientes: clientesStore, updateProyecto, registros, personasStore } = useStore()
+
+  // Costo creatividad por proyecto — Opción B: costoHora dinámico por persona-mes
+  // costoHora = costoMensual / totalHorasRegistradasEnEseMes
+  // Así el 100% del salario siempre queda imputado a proyectos al cierre del mes
+  const costoCreatividadMap = useMemo(() => {
+    function horasDiff(ini: string, fin: string) {
+      const [sh, sm] = ini.split(':').map(Number)
+      const [eh, em] = fin.split(':').map(Number)
+      return Math.max(((eh * 60 + em) - (sh * 60 + sm)) / 60, 0)
+    }
+
+    // 1. Total horas por persona-mes
+    const horasPorPersonaMes: Record<string, number> = {}
+    registros.forEach(r => {
+      const mes = r.fecha.substring(0, 7) // YYYY-MM
+      const key = `${r.persona}|${mes}`
+      horasPorPersonaMes[key] = (horasPorPersonaMes[key] ?? 0) + horasDiff(r.horaInicio, r.horaFin)
+    })
+
+    // 2. Sumar costo real a cada proyecto
+    const map: Record<string, number> = {}
+    registros.forEach(r => {
+      const mes = r.fecha.substring(0, 7)
+      const key = `${r.persona}|${mes}`
+      const totalHorasMes = horasPorPersonaMes[key] ?? 0
+      if (totalHorasMes === 0) return
+
+      const persona = personasStore.find(p => p.nombre === r.persona)
+      if (!persona) return
+
+      const costoHora = persona.costoMensual / totalHorasMes
+      const horas = horasDiff(r.horaInicio, r.horaFin)
+      map[r.proyectoId] = (map[r.proyectoId] ?? 0) + costoHora * horas
+    })
+
+    return map
+  }, [registros, personasStore])
 
   const today = new Date()
   const [periodo, setPeriodo] = useState('Mes')
@@ -206,9 +243,16 @@ export default function SeguimientoPage() {
   const [estado, setEstado] = useState('Todos')
   const [search, setSearch] = useState('')
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   const clientesFiltro = ['Todos', ...clientesStore.map(c => c.nombre)]
-  const ejecutivosFiltro = ['Todos', 'Hans Vargas', 'María Torres', 'Laura Medina', 'David Ruiz', 'Juan Camilo', 'Felipe Aguilón', 'Iván Londoño']
+  const ejecutivosFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
   const estadosFiltro = ['Todos', 'En propuesta', 'En negociación', 'Vendido', 'Perdido']
 
   function navPeriodo(dir: 1 | -1) {
@@ -245,6 +289,23 @@ export default function SeguimientoPage() {
     { label: 'Proyectos perdidos', value: perdidos.length.toString(), Icon: XCircle, bg: '#FFF7ED', ic: '#EA580C' },
     { label: 'Tasa de cierre', value: `${tasaCierre.toFixed(1).replace('.', ',')}%`, Icon: Target, bg: '#EFF6FF', ic: '#2563EB' },
   ]
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      let va: string | number = ''
+      let vb: string | number = ''
+      if      (sortCol === 'cliente')   { va = a.cliente;           vb = b.cliente }
+      else if (sortCol === 'nombre')    { va = a.nombre;            vb = b.nombre }
+      else if (sortCol === 'ejecutivo') { va = a.ejecutivo;         vb = b.ejecutivo }
+      else if (sortCol === 'fechaPres') { va = a.fechaPresentacion; vb = b.fechaPresentacion }
+      else if (sortCol === 'fechaEjec') { va = a.fechaEntrega;      vb = b.fechaEntrega }
+      else if (sortCol === 'estado')    { va = a.estadoComercial;   vb = b.estadoComercial }
+      else if (sortCol === 'monto')     { va = a.monto;             vb = b.monto }
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortCol, sortDir])
 
   const detalleActual = detalle ? (proyectos.find(p => p.id === detalle.id) ?? null) : null
 
@@ -349,11 +410,28 @@ export default function SeguimientoPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1300 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                {[
-                  'Cliente', 'Proyecto', 'Ejecutivo', 'F. Presentación', 'F. Ejecución',
-                  'Estado', 'Monto estimado', 'Monto real vendido', 'Costo creatividad',
-                  'Rent. producción %', 'Acción'
-                ].map(h => (
+                {([
+                  { label: 'Cliente',              col: 'cliente' },
+                  { label: 'Proyecto',             col: 'nombre' },
+                  { label: 'KAM',                  col: 'ejecutivo' },
+                  { label: 'F. Presentación',      col: 'fechaPres' },
+                  { label: 'F. Ejecución',         col: 'fechaEjec' },
+                  { label: 'Estado',               col: 'estado' },
+                  { label: 'Monto estimado',       col: 'monto' },
+                ] as { label: string; col: string }[]).map(({ label, col }) => (
+                  <th key={col} onClick={() => toggleSort(col)}
+                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {label}
+                      {sortCol === col
+                        ? sortDir === 'asc'
+                          ? <ChevronUp style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                          : <ChevronDown style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                        : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />}
+                    </span>
+                  </th>
+                ))}
+                {['Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -365,7 +443,7 @@ export default function SeguimientoPage() {
                     No hay proyectos en este período con los filtros seleccionados.
                   </td>
                 </tr>
-              ) : filtered.map((p, i) => {
+              ) : sorted.map((p, i) => {
                 const est = estadoStyle[p.estadoComercial] ?? { bg: '#F3F4F6', text: '#6B7280' }
                 const isLast = i === filtered.length - 1
                 const td = { padding: '12px 14px', fontSize: 13, color: '#374151', borderBottom: isLast ? 'none' : '1px solid #F3F4F6', verticalAlign: 'middle' as const }
@@ -427,10 +505,15 @@ export default function SeguimientoPage() {
                         color="#15803D"
                       />
                     </td>
-                    {/* Costo creatividad — solo lectura, vendrá de calendar */}
-                    <td style={{ ...td, color: p.costoCreatividad ? '#374151' : '#D1D5DB', fontStyle: p.costoCreatividad ? 'normal' : 'italic', fontSize: 12 }}>
-                      {p.costoCreatividad ? fmt(p.costoCreatividad) : 'Desde calendar'}
-                    </td>
+                    {/* Costo creatividad — calculado en tiempo real desde registros del Calendar */}
+                    {(() => {
+                      const costo = costoCreatividadMap[p.id]
+                      return (
+                        <td style={{ ...td, color: costo ? '#374151' : '#D1D5DB', fontStyle: costo ? 'normal' : 'italic', fontSize: 12 }}>
+                          {costo ? fmt(Math.round(costo)) : 'Sin registros'}
+                        </td>
+                      )
+                    })()}
                     {/* Rentabilidad producción — editable siempre */}
                     <td style={td}>
                       <EditableNumber

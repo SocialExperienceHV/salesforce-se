@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FolderOpen, Plus, Search, MoreHorizontal, X } from 'lucide-react'
+import { FolderOpen, Plus, Search, MoreHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +32,6 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const mesesFiltro = ['Todos', ...MESES.map((m, i) => `${m} ${2026 + Math.floor(i / 12)}`).slice(0, 12)]
 const tipos = ['Todos', 'Evento 360', 'Logística', 'Activación', 'Experiencias', 'Convención', 'Escenografía/Feria', 'Técnica', 'Litografía', 'Digital', 'Estrategia', 'Otros']
 const estadosFiltro = ['Todos', 'En propuesta', 'En negociación', 'Vendido', 'Perdido']
-const ejecutivos = ['Todos', 'Juan Camilo', 'María Torres', 'Laura Medina', 'David Ruiz', 'Hans Vargas', 'Felipe Aguilón', 'Iván Londoño']
 
 function formatCOP(v: number) { return `$ ${v.toLocaleString('es-CO')}` }
 
@@ -56,12 +55,14 @@ function mesDeProyecto(p: Proyecto): string {
 }
 
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
-function DetallePanel({ proyecto, onClose, onEstadoChange }: {
+function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange }: {
   proyecto: Proyecto
   onClose: () => void
   onEstadoChange: (id: string, estado: Proyecto['estadoComercial']) => void
+  onCentroCostoChange: (id: string, cc: string) => void
 }) {
   const estadoOpts: Proyecto['estadoComercial'][] = ['En propuesta', 'En negociación', 'Vendido', 'Perdido']
+  const [cc, setCc] = useState(proyecto.centroCosto ?? '')
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
@@ -94,6 +95,32 @@ function DetallePanel({ proyecto, onClose, onEstadoChange }: {
               ))}
             </div>
           </div>
+
+          {/* Centro de costo — solo visible cuando está Vendido */}
+          {proyecto.estadoComercial === 'Vendido' && (
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 16px' }}>
+              <div className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Centro de costo (Gespro)</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={cc}
+                  onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 4); setCc(v) }}
+                  placeholder="4 dígitos"
+                  maxLength={4}
+                  style={{ height: 36, width: 100, padding: '0 10px', border: '1px solid #BBF7D0', borderRadius: 7, fontSize: 14, fontWeight: 600, color: '#065F46', textAlign: 'center', outline: 'none', letterSpacing: '0.1em' }}
+                />
+                <button
+                  onClick={() => { if (cc.length === 4) onCentroCostoChange(proyecto.id, cc) }}
+                  disabled={cc.length !== 4}
+                  style={{ height: 36, padding: '0 14px', background: cc.length === 4 ? '#059669' : '#D1FAE5', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: cc.length === 4 ? '#fff' : '#6EE7B7', cursor: cc.length === 4 ? 'pointer' : 'not-allowed' }}>
+                  Asignar
+                </button>
+                {proyecto.centroCosto && (
+                  <span style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>Actual: {proyecto.centroCosto}</span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>Ingresa el número de 4 dígitos asignado en Gespro.</p>
+            </div>
+          )}
 
           {/* Info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -140,7 +167,7 @@ function DetallePanel({ proyecto, onClose, onEstadoChange }: {
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProyectosPage() {
-  const { proyectos, clientes, updateProyecto } = useStore()
+  const { proyectos, clientes, updateProyecto, personasStore } = useStore()
   const [search, setSearch] = useState('')
   const [tipo, setTipo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')
@@ -148,8 +175,16 @@ export default function ProyectosPage() {
   const [cliente, setCliente] = useState('Todos')
   const [mes, setMes] = useState('Todos')
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   const clientesFiltro = ['Todos', ...clientes.map(c => c.nombre)]
+  const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
 
   const filtered = proyectos.filter(p => {
     const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || p.cliente.toLowerCase().includes(search.toLowerCase())
@@ -161,6 +196,24 @@ export default function ProyectosPage() {
     return matchSearch && matchTipo && matchEstado && matchEjecutivo && matchCliente && matchMes
   })
 
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      let va: string | number = ''
+      let vb: string | number = ''
+      if (sortCol === 'nombre')           { va = a.nombre;            vb = b.nombre }
+      else if (sortCol === 'cliente')     { va = a.cliente;           vb = b.cliente }
+      else if (sortCol === 'tipo')        { va = a.tipo;              vb = b.tipo }
+      else if (sortCol === 'ejecutivo')   { va = a.ejecutivo;         vb = b.ejecutivo }
+      else if (sortCol === 'fechaPres')   { va = a.fechaPresentacion; vb = b.fechaPresentacion }
+      else if (sortCol === 'fechaEjec')   { va = a.fechaEntrega;      vb = b.fechaEntrega }
+      else if (sortCol === 'monto')       { va = a.monto;             vb = b.monto }
+      else if (sortCol === 'estado')      { va = a.estadoComercial;   vb = b.estadoComercial }
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortCol, sortDir])
+
   // Si el proyecto abierto fue modificado, sincroniza el panel
   const detalleActual = detalle ? (proyectos.find(p => p.id === detalle.id) ?? null) : null
 
@@ -171,6 +224,7 @@ export default function ProyectosPage() {
           proyecto={detalleActual}
           onClose={() => setDetalle(null)}
           onEstadoChange={(id, est) => updateProyecto(id, { estadoComercial: est })}
+          onCentroCostoChange={(id, cc) => updateProyecto(id, { centroCosto: cc })}
         />
       )}
 
@@ -221,10 +275,10 @@ export default function ProyectosPage() {
         </Select>
         <Select value={ejecutivo} onValueChange={v => v && setEjecutivo(v)}>
           <SelectTrigger className="w-44 h-9 text-sm">
-            <span className="text-muted-foreground text-xs mr-1">Ejecutivo:</span>
+            <span className="text-muted-foreground text-xs mr-1">KAM:</span>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>{ejecutivos.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+          <SelectContent>{kamsFiltro.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={tipo} onValueChange={v => v && setTipo(v)}>
           <SelectTrigger className="w-40 h-9 text-sm">
@@ -258,14 +312,28 @@ export default function ProyectosPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="text-xs font-medium">Proyecto</TableHead>
-              <TableHead className="text-xs font-medium">Cliente / Subcliente</TableHead>
-              <TableHead className="text-xs font-medium">Tipo</TableHead>
-              <TableHead className="text-xs font-medium">Ejecutivo</TableHead>
-              <TableHead className="text-xs font-medium">F. Presentación</TableHead>
-              <TableHead className="text-xs font-medium">F. Ejecución</TableHead>
-              <TableHead className="text-xs font-medium">Monto estimado</TableHead>
-              <TableHead className="text-xs font-medium">Estado</TableHead>
+              {([
+                { label: 'Proyecto',          col: 'nombre' },
+                { label: 'Cliente / Subcliente', col: 'cliente' },
+                { label: 'Tipo',              col: 'tipo' },
+                { label: 'KAM',               col: 'ejecutivo' },
+                { label: 'F. Presentación',   col: 'fechaPres' },
+                { label: 'F. Ejecución',      col: 'fechaEjec' },
+                { label: 'Monto estimado',    col: 'monto' },
+                { label: 'Estado',            col: 'estado' },
+              ] as { label: string; col: string }[]).map(({ label, col }) => (
+                <TableHead key={col} className="text-xs font-medium cursor-pointer select-none"
+                  onClick={() => toggleSort(col)}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {label}
+                    {sortCol === col
+                      ? sortDir === 'asc'
+                        ? <ChevronUp style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                        : <ChevronDown style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                      : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />}
+                  </span>
+                </TableHead>
+              ))}
               <TableHead className="text-xs font-medium">Acción</TableHead>
             </TableRow>
           </TableHeader>
@@ -277,7 +345,7 @@ export default function ProyectosPage() {
                   {proyectos.length === 0 && <Link href="/proyectos/nuevo" className="ml-2 text-blue-600 underline">Crea el primer proyecto</Link>}
                 </TableCell>
               </TableRow>
-            ) : filtered.map(p => {
+            ) : sorted.map(p => {
               const logo = clienteLogo(p.cliente, clientes)
               const color = clienteColor(p.cliente, clientes)
               return (

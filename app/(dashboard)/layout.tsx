@@ -1,7 +1,21 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
+import { useStore } from '@/lib/store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useStore()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (currentUser === null) router.replace('/login')
+  }, [currentUser, router])
+
+  if (!currentUser) return null
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#F9FAFB' }}>
       <Sidebar />
