@@ -131,6 +131,40 @@ function EditableNumber({ value, enabled, placeholder, onSave, format, color }: 
   )
 }
 
+function CentroCostoCell({ value, onSave }: { value?: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [raw, setRaw] = useState('')
+
+  function start() { setRaw(value ?? ''); setEditing(true) }
+  function save() { if (raw.trim()) onSave(raw.trim()); setEditing(false) }
+
+  if (editing) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <input autoFocus value={raw} onChange={e => setRaw(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        style={{ width: 72, height: 28, padding: '0 6px', border: '1px solid #1A56DB', borderRadius: 6, fontSize: 13, outline: 'none', color: '#111827', textAlign: 'center', fontWeight: 700, letterSpacing: '0.06em' }} />
+      <button onClick={save} style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1A56DB', border: 'none', borderRadius: 5, cursor: 'pointer' }}>
+        <Check style={{ width: 12, height: 12, color: '#fff' }} />
+      </button>
+    </div>
+  )
+
+  if (value) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ padding: '2px 8px', borderRadius: 5, background: '#ECFDF5', color: '#065F46', fontSize: 12, fontWeight: 700, border: '1px solid #BBF7D0', letterSpacing: '0.06em' }}>{value}</span>
+      <button onClick={start} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 0, display: 'flex' }}>
+        <Pencil style={{ width: 11, height: 11 }} />
+      </button>
+    </div>
+  )
+
+  return (
+    <button onClick={start} style={{ fontSize: 12, color: '#9CA3AF', background: 'none', border: '1px dashed #D1D5DB', borderRadius: 5, padding: '2px 10px', cursor: 'pointer', fontStyle: 'italic' }}>
+      Ingresar
+    </button>
+  )
+}
+
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
 function DetallePanel({ p, clientes, onClose }: { p: Proyecto; clientes: { nombre: string; color: string; logo?: string }[]; onClose: () => void }) {
   const cl = clientes.find(c => c.nombre === p.cliente)
@@ -235,7 +269,7 @@ export default function SeguimientoPage() {
   }, [registros, personasStore])
 
   const today = new Date()
-  const [periodo, setPeriodo] = useState('Mes')
+  const [periodo, setPeriodo] = useState('Año')
   const [cursorMonth, setCursorMonth] = useState(today.getMonth())
   const [cursorYear, setCursorYear] = useState(today.getFullYear())
   const [cliente, setCliente] = useState('Todos')
@@ -431,7 +465,7 @@ export default function SeguimientoPage() {
                     </span>
                   </th>
                 ))}
-                {['Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
+                {['Centro costos', 'Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -494,6 +528,10 @@ export default function SeguimientoPage() {
                     </td>
                     {/* Monto estimado */}
                     <td style={{ ...td, fontWeight: 600 }}>{fmt(p.monto)}</td>
+                    {/* Centro de costos — editable siempre */}
+                    <td style={td}>
+                      <CentroCostoCell value={p.centroCosto} onSave={v => updateProyecto(p.id, { centroCosto: v })} />
+                    </td>
                     {/* Monto real vendido — editable solo si Vendido */}
                     <td style={td}>
                       <EditableNumber

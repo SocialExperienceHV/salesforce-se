@@ -265,6 +265,7 @@ export default function PersonasPage() {
               <th style={th}>Área / Cargo</th>
               <th style={th}>Correo</th>
               <th style={th}>Permiso</th>
+              <th style={th}>Clave</th>
               <th style={th}>Costo mensual</th>
               <th style={th}>Estado</th>
               <th style={th}>Acciones</th>
@@ -297,6 +298,11 @@ export default function PersonasPage() {
                   <td style={td}>
                     <span style={{ display: 'inline-flex', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: ps.bg, color: ps.color }}>
                       {p.permiso ?? 'Usuario'}
+                    </span>
+                  </td>
+                  <td style={td}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, padding: '2px 8px', borderRadius: 5, background: '#F3F4F6', color: '#374151', letterSpacing: '0.1em' }}>
+                      {p.clave ?? '—'}
                     </span>
                   </td>
                   <td style={{ ...td, fontSize: 13, color: '#374151', fontWeight: 500 }}>{formatCOP(p.costoMensual)}</td>

@@ -97,12 +97,14 @@ const selectStyle = {
 }
 
 // ─── Panel (Nuevo registro) ────────────────────────────────────────────────────
-function Panel({ onClose, onSave, proyectosNombres, registros }: {
+function Panel({ onClose, onSave, proyectosNombres, registros, currentUser }: {
   onClose: () => void
   onSave: (r: Omit<RegistroTiempo, 'id' | 'createdAt'>) => void
   proyectosNombres: string[]
   registros: RegistroTiempo[]
+  currentUser: import('@/lib/store').PersonaStore
 }) {
+  const CURRENT_USER = currentUser
   const [fecha,      setFecha]      = useState(todayISO())
   const [horaInicio, setHoraInicio] = useState('09:00')
   const [horaFin,    setHoraFin]    = useState('11:00')
@@ -231,14 +233,16 @@ function Panel({ onClose, onSave, proyectosNombres, registros }: {
 }
 
 // ─── Edit panel ────────────────────────────────────────────────────────────────
-function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onDelete }: {
+function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onDelete, currentUser }: {
   registro: RegistroTiempo
   registros: RegistroTiempo[]
   proyectosNombres: string[]
   onClose: () => void
   onSave: (id: string, changes: Partial<RegistroTiempo>) => void
   onDelete: (id: string) => void
+  currentUser: import('@/lib/store').PersonaStore
 }) {
+  const CURRENT_USER = currentUser
   const [fecha,      setFecha]      = useState(registro.fecha)
   const [horaInicio, setHoraInicio] = useState(registro.horaInicio)
   const [horaFin,    setHoraFin]    = useState(registro.horaFin)
@@ -667,9 +671,9 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar view */}
-        {view === 'Semana' && <WeekGrid monday={weekStart(cursor)} today={today} registros={registros} onEdit={setEditing} />}
-        {view === 'Día'    && <DayGrid  day={cursor}               today={today} registros={registros} onEdit={setEditing} />}
-        {view === 'Mes'    && <MonthGrid month={cursor.getMonth()} year={cursor.getFullYear()} today={today} registros={registros} onEdit={setEditing} />}
+        {view === 'Semana' && <WeekGrid monday={weekStart(cursor)} today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
+        {view === 'Día'    && <DayGrid  day={cursor}               today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
+        {view === 'Mes'    && <MonthGrid month={cursor.getMonth()} year={cursor.getFullYear()} today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
       </div>
 
       {showPanel && (
@@ -678,6 +682,7 @@ export default function CalendarPage() {
           onSave={r => addRegistro({ ...r, proyectoId: proyectos.find(p => p.nombre === r.proyecto)?.id ?? '' })}
           proyectosNombres={storeProyectos}
           registros={registros}
+          currentUser={CURRENT_USER}
         />
       )}
 
@@ -689,6 +694,7 @@ export default function CalendarPage() {
           onClose={() => setEditing(null)}
           onSave={updateRegistro}
           onDelete={deleteRegistro}
+          currentUser={CURRENT_USER}
         />
       )}
     </div>

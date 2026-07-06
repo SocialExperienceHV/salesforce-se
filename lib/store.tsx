@@ -80,6 +80,62 @@ export type Cliente = {
   createdAt: string
 }
 
+export type GastoLegalizacion = {
+  id: string
+  centroCosto: string
+  tipoGasto: string
+  tipoFactura: 'FE' | 'Cuenta de cobro'
+  cedulaCuentaCobro?: string
+  soporteCuentaNombre?: string
+  soporteCuentaData?: string  // base64
+  ciudadFecha: string
+  descripcion: string
+  pesos: number
+  usd: number
+  tasaCambio: number
+  total: number
+  soporteNombre?: string
+  soporteData?: string  // base64
+}
+
+export type HistorialLeg = {
+  fecha: string
+  usuario: string
+  accion: string
+  observacion?: string
+}
+
+export type Legalizacion = {
+  id: string
+  // Encabezado
+  fecha: string
+  tipoDocumento: string
+  tipoLegalizacion: 'Reembolso' | 'Legalización de anticipo'
+  noAnticipo: string
+  fechaReembolso: string
+  // Responsable
+  responsable: string
+  cargo: string
+  // Proyecto
+  proyectoId: string
+  proyecto: string
+  centroCosto: string
+  productor: string
+  cliente: string
+  // Gastos
+  gastos: GastoLegalizacion[]
+  anticipo: number
+  // Observaciones
+  observaciones: string
+  // Estado
+  estado: 'Borrador' | 'En revisión' | 'Devuelta' | 'Aprobada' | 'Cerrada'
+  observacionContabilidad?: string
+  // Trazabilidad
+  creadoPor: string
+  historial: HistorialLeg[]
+  createdAt: string
+}
+
 export type Prospecto = {
   id: string
   empresa: string
@@ -137,6 +193,14 @@ const INIT_PERSONAS_STORE: PersonaStore[] = [
   { id: 'ps13', nombre: 'Carlos Bustamante', area: 'Producción',        cargo: 'Productor Sr',          costoMensual: 6400000, email: 'carlos.bustamante@socialexperience.com.co',clave: '1234', permiso: 'Usuario',        estado: 'Activo' },
   { id: 'ps14', nombre: 'Manuel Parra',      area: 'Producción',        cargo: 'Coordinador',           costoMensual: 4800000, email: 'manuel.parra@socialexperience.com.co',     clave: '1234', permiso: 'Usuario',        estado: 'Activo' },
   { id: 'ps15', nombre: 'Juan Vargas',       area: 'Administración',    cargo: 'Administrativo',        costoMensual: 5000000, email: 'juan.vargas@socialexperience.com.co',      clave: '1234', permiso: 'Administración', estado: 'Activo' },
+]
+
+const INIT_LEGALIZACIONES: Legalizacion[] = [
+  { id: 'lg1', fecha: '2026-05-15', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0138', fechaReembolso: '2026-05-15', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g1', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Traslado equipo materiales', pesos: 850000, usd: 0, tasaCambio: 0, total: 850000 }, { id: 'g2', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Almuerzo equipo de trabajo', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }, { id: 'g3', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 13/05/2026', descripcion: 'Pendones y banners', pesos: 18450000, usd: 0, tasaCambio: 0, total: 18450000 }, { id: 'g4', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Parqueadero vehículo', pesos: 830000, usd: 0, tasaCambio: 0, total: 830000 }], anticipo: 25000000, observaciones: 'Gastos realizados para activación en 15 puntos de venta en Bogotá.', estado: 'En revisión', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-15', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-16', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }], createdAt: '2026-05-15' },
+  { id: 'lg2', fecha: '2026-05-14', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-14', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p1', proyecto: 'Campaña Aniversario Éxito 82 años', centroCosto: '1035', productor: 'Francisco Cárdenas', cliente: 'Grupo Éxito', gastos: [{ id: 'g5', centroCosto: '1035', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Lunch reunión cliente', pesos: 45600000, usd: 0, tasaCambio: 0, total: 45600000 }, { id: 'g6', centroCosto: '1035', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Taxi aeropuerto', pesos: 23150000, usd: 0, tasaCambio: 0, total: 23150000 }], anticipo: 0, observaciones: '', estado: 'Borrador', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-14', usuario: 'Manuel Parra', accion: 'Creada' }], createdAt: '2026-05-14' },
+  { id: 'lg3', fecha: '2026-05-13', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: 'ANT-2026-0121', fechaReembolso: '2026-05-13', responsable: 'Carlos Bustamante', cargo: 'Productor Sr', proyectoId: 'p3', proyecto: 'Campaña Acumulación de Millas', centroCosto: '1038', productor: 'Francisco Cárdenas', cliente: 'Avianca', gastos: [{ id: 'g7', centroCosto: '1038', tipoGasto: 'Material POP', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Impresión pendones aeropuerto', pesos: 2800000, usd: 0, tasaCambio: 0, total: 2800000 }, { id: 'g8', centroCosto: '1038', tipoGasto: 'Transporte', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Flete material activación', pesos: 1200000, usd: 0, tasaCambio: 0, total: 1200000 }, { id: 'g9', centroCosto: '1038', tipoGasto: 'Hospedaje', ciudadFecha: 'Medellín 12/05/2026', descripcion: 'Hotel equipo 1 noche', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }], anticipo: 5000000, observaciones: 'Activación aeropuerto Rionegro.', estado: 'Aprobada', creadoPor: 'Carlos Bustamante', historial: [{ fecha: '2026-05-13', usuario: 'Carlos Bustamante', accion: 'Creada' }, { fecha: '2026-05-14', usuario: 'Carlos Bustamante', accion: 'Enviada a revisión' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Aprobada' }], createdAt: '2026-05-13' },
+  { id: 'lg4', fecha: '2026-05-12', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0115', fechaReembolso: '2026-05-12', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p6', proyecto: 'Activación Mundial Banco Falabella', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g10', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Alquiler furgón materiales', pesos: 5400000, usd: 0, tasaCambio: 0, total: 5400000 }, { id: 'g11', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Producción material BTL', pesos: 18200000, usd: 0, tasaCambio: 0, total: 18200000 }, { id: 'g12', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 11/05/2026', descripcion: 'Parqueadero centro comercial', pesos: 6400000, usd: 0, tasaCambio: 0, total: 6400000 }], anticipo: 30000000, observaciones: '', estado: 'Cerrada', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-12', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-13', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }, { fecha: '2026-05-14', usuario: 'Juan Vargas', accion: 'Aprobada' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Cerrada' }], createdAt: '2026-05-12' },
+  { id: 'lg5', fecha: '2026-05-09', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-09', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g13', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Catering lanzamiento', pesos: 1850000, usd: 0, tasaCambio: 0, total: 1850000 }, { id: 'g14', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Taxi reunión cliente', pesos: 450000, usd: 0, tasaCambio: 0, total: 450000 }], anticipo: 3000000, observaciones: 'Gastos menores lanzamiento BTL.', estado: 'Devuelta', observacionContabilidad: 'Falta factura del catering. Adjuntar soporte.', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-09', usuario: 'Manuel Parra', accion: 'Creada' }, { fecha: '2026-05-10', usuario: 'Manuel Parra', accion: 'Enviada a revisión' }, { fecha: '2026-05-11', usuario: 'Juan Vargas', accion: 'Devuelta', observacion: 'Falta factura del catering. Adjuntar soporte.' }], createdAt: '2026-05-09' },
 ]
 
 const INIT_REGISTROS: RegistroTiempo[] = []
@@ -202,6 +266,10 @@ type StoreCtx = {
 
   planOverrides: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>
   updatePlanOverride: (key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) => void
+
+  legalizaciones: Legalizacion[]
+  addLegalizacion: (l: Omit<Legalizacion, 'id' | 'createdAt'>) => string
+  updateLegalizacion: (id: string, changes: Partial<Legalizacion>) => void
 }
 
 const Ctx = createContext<StoreCtx | null>(null)
@@ -213,6 +281,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [prospectos, setProspectos]       = useState<Prospecto[]>(INIT_PROSPECTOS)
   const [personasStore, setPersonasStore] = useState<PersonaStore[]>(INIT_PERSONAS_STORE)
   const [planOverrides, setPlanOverrides] = useState<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>>({})
+  const [legalizaciones, setLegalizaciones] = useState<Legalizacion[]>(INIT_LEGALIZACIONES)
   const [currentUser, setCurrentUserState] = useState<PersonaStore | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -224,6 +293,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProspectos(loadLS('cal2_prospectos', INIT_PROSPECTOS))
     setPersonasStore(personas)
     setPlanOverrides(loadLS('cal2_plan_overrides', {}))
+    setLegalizaciones(loadLS('cal2_legalizaciones', INIT_LEGALIZACIONES))
 
     // Restaurar usuario logueado
     const uid = getLoggedUserId()
@@ -307,6 +377,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPlanOverrides(next); saveLS('cal2_plan_overrides', next)
   }
 
+  function addLegalizacion(l: Omit<Legalizacion, 'id' | 'createdAt'>): string {
+    const id = `lg${Date.now()}`
+    const newL: Legalizacion = { ...l, id, createdAt: new Date().toISOString() }
+    const next = [newL, ...legalizaciones]
+    setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
+    return id
+  }
+
+  function updateLegalizacion(id: string, changes: Partial<Legalizacion>) {
+    const next = legalizaciones.map(l => l.id === id ? { ...l, ...changes } : l)
+    setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
+  }
+
   if (!ready) return null
 
   return (
@@ -318,6 +401,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       personasStore, addPersonaStore, updatePersonaStore,
       currentUser, setCurrentUser,
       planOverrides, updatePlanOverride,
+      legalizaciones, addLegalizacion, updateLegalizacion,
     }}>
       {children}
     </Ctx.Provider>

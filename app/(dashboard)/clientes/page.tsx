@@ -79,6 +79,8 @@ function LogoUploader({ logo, onChange }: { logo: string; onChange: (b64: string
 }
 
 // ─── Modal nuevo cliente ────────────────────────────────────────────────────────
+type AreaEntry = { nombre: string; personas: { nombre: string; email: string; telefono: string }[] }
+
 function NuevoClienteModal({ onClose, onSave }: {
   onClose: () => void
   onSave: (data: Omit<Cliente, 'id' | 'createdAt'>) => void
@@ -87,26 +89,51 @@ function NuevoClienteModal({ onClose, onSave }: {
   const [ejecutivo, setEjecutivo] = useState('')
   const [color, setColor] = useState(COLORES[0])
   const [logo, setLogo] = useState('')
-  const [subclienteInput, setSubclienteInput] = useState('')
-  const [subclientes, setSubclientes] = useState<string[]>([])
+  const [areaInput, setAreaInput] = useState('')
+  const [areas, setAreas] = useState<AreaEntry[]>([])
+  const [personaForm, setPersonaForm] = useState<Record<string, { nombre: string; email: string; telefono: string }>>({})
   const [error, setError] = useState('')
 
-  function addSubcliente() {
-    const v = subclienteInput.trim()
-    if (!v || subclientes.includes(v)) return
-    setSubclientes([...subclientes, v])
-    setSubclienteInput('')
+  function addArea() {
+    const v = areaInput.trim()
+    if (!v || areas.find(a => a.nombre === v)) return
+    setAreas([...areas, { nombre: v, personas: [] }])
+    setAreaInput('')
+  }
+
+  function removeArea(nombre: string) {
+    setAreas(areas.filter(a => a.nombre !== nombre))
+  }
+
+  function addPersona(areaNombre: string) {
+    const form = personaForm[areaNombre] ?? { nombre: '', email: '', telefono: '' }
+    if (!form.nombre.trim()) return
+    setAreas(areas.map(a => a.nombre === areaNombre
+      ? { ...a, personas: [...a.personas, { nombre: form.nombre.trim(), email: form.email.trim(), telefono: form.telefono.trim() }] }
+      : a
+    ))
+    setPersonaForm(prev => ({ ...prev, [areaNombre]: { nombre: '', email: '', telefono: '' } }))
+  }
+
+  function removePersona(areaNombre: string, idx: number) {
+    setAreas(areas.map(a => a.nombre === areaNombre
+      ? { ...a, personas: a.personas.filter((_, i) => i !== idx) }
+      : a
+    ))
   }
 
   function handleSave() {
     if (!nombre.trim()) { setError('El nombre del cliente es obligatorio.'); return }
     if (!ejecutivo) { setError('Selecciona un ejecutivo KAM.'); return }
-    onSave({ nombre: nombre.trim(), iniciales: getIniciales(nombre.trim()), color, logo: logo || undefined, ejecutivo, subclientes, proyectos: 0, estado: 'Activo' })
+    const contactos: ContactoCliente[] = areas.map(a => ({ id: `c-${Date.now()}-${a.nombre}`, area: a.nombre, personas: a.personas }))
+    onSave({ nombre: nombre.trim(), iniciales: getIniciales(nombre.trim()), color, logo: logo || undefined, ejecutivo, subclientes: areas.map(a => a.nombre), contactos, proyectos: 0, estado: 'Activo' })
   }
+
+  const inp: React.CSSProperties = { height: 32, padding: '0 10px', fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 6, outline: 'none', width: '100%', color: '#374151' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 12, width: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, width: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Nuevo cliente</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 2 }}>
@@ -147,26 +174,67 @@ function NuevoClienteModal({ onClose, onSave }: {
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Área / Marcas <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(opcional)</span></Label>
+          {/* Áreas / Marcas con contactos */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs">Áreas / Marcas y contactos <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(opcional)</span></Label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Input value={subclienteInput} onChange={e => setSubclienteInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addSubcliente()}
+              <Input value={areaInput} onChange={e => setAreaInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addArea()}
                 placeholder="Ej. Banca Personas" className="h-9 text-sm flex-1" />
-              <Button variant="outline" size="sm" className="h-9 px-3" onClick={addSubcliente}>
+              <Button variant="outline" size="sm" className="h-9 px-3" onClick={addArea}>
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
-            {subclientes.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                {subclientes.map(s => (
-                  <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 20, fontSize: 12, background: '#F3F4F6', border: '1px solid #E5E7EB', color: '#374151' }}>
-                    {s}
-                    <button onClick={() => setSubclientes(subclientes.filter(x => x !== s))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 0, lineHeight: 1 }}>×</button>
-                  </span>
+
+            {areas.map(area => (
+              <div key={area.nombre} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+                {/* Header área */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#F9FAFB', borderBottom: area.personas.length > 0 || personaForm[area.nombre] !== undefined ? '1px solid #E5E7EB' : 'none' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{area.nombre}</span>
+                  <button onClick={() => removeArea(area.nombre)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', lineHeight: 1 }}>
+                    <X style={{ width: 13, height: 13 }} />
+                  </button>
+                </div>
+
+                {/* Personas existentes */}
+                {area.personas.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid #F3F4F6', fontSize: 12, color: '#374151' }}>
+                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#1A56DB' }}>{p.nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500 }}>{p.nombre}</div>
+                      <div style={{ color: '#9CA3AF', fontSize: 11 }}>{[p.email, p.telefono].filter(Boolean).join(' · ')}</div>
+                    </div>
+                    <button onClick={() => removePersona(area.nombre, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB' }}>
+                      <X style={{ width: 12, height: 12 }} />
+                    </button>
+                  </div>
                 ))}
+
+                {/* Formulario agregar persona */}
+                <div style={{ padding: '10px 12px', background: '#fff' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Agregar contacto</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <input value={personaForm[area.nombre]?.nombre ?? ''}
+                      onChange={e => setPersonaForm(prev => ({ ...prev, [area.nombre]: { ...prev[area.nombre] ?? { nombre: '', email: '', telefono: '' }, nombre: e.target.value } }))}
+                      placeholder="Nombre *" style={inp} />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input value={personaForm[area.nombre]?.email ?? ''}
+                        onChange={e => setPersonaForm(prev => ({ ...prev, [area.nombre]: { ...prev[area.nombre] ?? { nombre: '', email: '', telefono: '' }, email: e.target.value } }))}
+                        placeholder="Correo" style={{ ...inp, flex: 1 }} />
+                      <input value={personaForm[area.nombre]?.telefono ?? ''}
+                        onChange={e => setPersonaForm(prev => ({ ...prev, [area.nombre]: { ...prev[area.nombre] ?? { nombre: '', email: '', telefono: '' }, telefono: e.target.value } }))}
+                        placeholder="Teléfono" style={{ ...inp, flex: 1 }} />
+                    </div>
+                    <button onClick={() => addPersona(area.nombre)}
+                      style={{ alignSelf: 'flex-start', height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, background: '#EFF6FF', color: '#1A56DB', border: '1px solid #BFDBFE', borderRadius: 6, cursor: 'pointer' }}>
+                      + Agregar
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
           </div>
 
           {error && <p style={{ fontSize: 12, color: '#DC2626', fontWeight: 500 }}>{error}</p>}
@@ -325,7 +393,17 @@ function ContactosPanel({ cliente, onClose, onSave }: {
             style={{ height: 36, padding: '0 16px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, color: '#374151', background: '#fff', cursor: 'pointer' }}>
             Cancelar
           </button>
-          <button onClick={() => { onSave(contactos); onClose() }}
+          <button onClick={() => {
+              let finalContactos = contactos
+              if (formPersona && formPersona.nombre.trim()) {
+                finalContactos = contactos.map(c =>
+                  c.id === formPersona.areaId
+                    ? { ...c, personas: [...c.personas, { nombre: formPersona.nombre, email: formPersona.email, telefono: formPersona.telefono }] }
+                    : c
+                )
+              }
+              onSave(finalContactos); onClose()
+            }}
             style={{ height: 36, padding: '0 20px', background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
             Guardar contactos
           </button>
@@ -478,7 +556,7 @@ export default function ClientesPage() {
         <ContactosPanel
           cliente={contactosCliente}
           onClose={() => setContactosCliente(null)}
-          onSave={contactos => { updateCliente(contactosCliente.id, { contactos }); setContactosCliente(null) }}
+          onSave={contactos => { updateCliente(contactosCliente.id, { contactos, subclientes: contactos.map(c => c.area) }); setContactosCliente(null) }}
         />
       )}
 

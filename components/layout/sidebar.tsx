@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, Search,
   FolderOpen, TrendingUp, Layers, Calendar,
-  List, BarChart3, Settings, ChevronLeft, Wallet
+  List, BarChart3, Settings, ChevronLeft, Wallet, Receipt
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/nomina',        label: 'Nómina',            icon: Wallet },
   { href: '/personas',      label: 'Equipo',            icon: Users },
   { href: '/prospeccion',   label: 'Prospección',      icon: Search },
+  { href: '/legalizaciones', label: 'Legalizaciones',   icon: Receipt },
   { href: '/reportes',      label: 'Reportes',         icon: BarChart3 },
   { href: '/administracion',label: 'Administración',   icon: Settings },
 ]

@@ -315,6 +315,7 @@ export default function ProyectosPage() {
               {([
                 { label: 'Proyecto',          col: 'nombre' },
                 { label: 'Cliente / Subcliente', col: 'cliente' },
+                { label: 'CC',                col: 'centroCosto' },
                 { label: 'Tipo',              col: 'tipo' },
                 { label: 'KAM',               col: 'ejecutivo' },
                 { label: 'F. Presentación',   col: 'fechaPres' },
@@ -371,6 +372,11 @@ export default function ProyectosPage() {
                         <div className="text-xs text-muted-foreground">{p.subcliente}</div>
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {p.centroCosto
+                      ? <span style={{ padding: '2px 7px', borderRadius: 5, background: '#ECFDF5', color: '#065F46', fontSize: 12, fontWeight: 700, border: '1px solid #BBF7D0' }}>{p.centroCosto}</span>
+                      : <span style={{ color: '#D1D5DB', fontSize: 12 }}>—</span>}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.tipo || '—'}</TableCell>
                   <TableCell>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, Check, Users, CalendarDays, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, Users, CalendarDays, RefreshCw, ChevronDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ function initiales(nombre: string) {
 }
 
 // ─── Panel lateral ──────────────────────────────────────────────────────────────
+type DiaPlan = Dia | 'Siguiente semana'
 type Asig = {
   key: string
   persona: string
@@ -41,28 +42,28 @@ type Asig = {
   proyectoNombre: string
   clienteNombre: string
   tipo: 'produccion' | 'creatividad'
-  dias: Dia[]
+  dias: DiaPlan[]
   estado: 'En proceso' | 'Finalizado'
 }
 
 function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
   asig: Asig
   onClose: () => void
-  onSave: (dias: Dia[]) => void
+  onSave: (dias: DiaPlan[]) => void
   onFinalizar: () => void
   onReprogramar: () => void
 }) {
   const { personasStore } = useStore()
   const persona = personasStore.find(p => p.nombre === asig.persona)
-  const [diasSel, setDiasSel] = useState<Dia[]>(asig.dias)
+  const [diasSel, setDiasSel] = useState<DiaPlan[]>(asig.dias)
 
   useEffect(() => { setDiasSel(asig.dias) }, [asig.key])
 
-  function toggleDia(d: Dia) {
+  function toggleDia(d: DiaPlan) {
     setDiasSel(prev =>
       prev.includes(d)
         ? prev.filter(x => x !== d)
-        : [...prev, d].sort((a, b) => DIA_ORDER[a] - DIA_ORDER[b])
+        : [...prev, d].sort((a, b) => (DIA_ORDER[a] ?? 5) - (DIA_ORDER[b] ?? 5))
     )
   }
 
@@ -108,9 +109,9 @@ function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
           <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Días asignados</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DIAS_PANEL.map(d => {
-              const sel = diasSel.includes(d as Dia)
+              const sel = diasSel.includes(d as DiaPlan)
               return (
-                <button key={d} onClick={() => toggleDia(d as Dia)}
+                <button key={d} onClick={() => toggleDia(d as DiaPlan)}
                   style={{ padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: 'pointer',
                     border: sel ? '2px solid #1A56DB' : '2px solid #E5E7EB',
                     background: sel ? '#EFF6FF' : '#fff',
@@ -187,7 +188,8 @@ export default function PlanTrabajoPage() {
   const { proyectos, personasStore, planOverrides, updatePlanOverride, currentUser } = useStore()
 
   const [vista, setVista] = useState<'equipo' | 'misemana'>('equipo')
-  const [filtroArea, setFiltroArea] = useState('Todas')
+  const [filtroAreas, setFiltroAreas] = useState<string[]>([])
+  const [areaDropOpen, setAreaDropOpen] = useState(false)
   const [filtroPersona, setFiltroPersona] = useState('Todas')
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [selected, setSelected] = useState<string | null>(null)
@@ -205,7 +207,7 @@ export default function PlanTrabajoPage() {
         const pd = personasStore.find(ps => ps.nombre === nombre)
         const key = `${nombre}__${p.id}`
         const override = planOverrides[key]
-        const dias = override?.dias?.filter((d): d is Dia => DIAS.includes(d as Dia)) ?? diaBase
+        const dias = (override?.dias ?? diaBase) as (Dia | 'Siguiente semana')[]
         const estado = override?.estado ?? 'En proceso'
         result.push({
           key, persona: nombre,
@@ -258,27 +260,40 @@ export default function PlanTrabajoPage() {
   // ── Personas filtradas ───────────────────────────────────────────────────────
   const personasFiltradas = useMemo(() => {
     let ps = todasPersonas
-    if (filtroArea !== 'Todas') {
-      const conArea = new Set(asignaciones.filter(a => a.area === filtroArea).map(a => a.persona))
+    if (filtroAreas.length > 0) {
+      const conArea = new Set(asignaciones.filter(a => filtroAreas.includes(a.area)).map(a => a.persona))
       ps = ps.filter(p => conArea.has(p))
     }
     if (filtroPersona !== 'Todas') ps = ps.filter(p => p === filtroPersona)
     return ps
-  }, [todasPersonas, filtroArea, filtroPersona, asignaciones])
+  }, [todasPersonas, filtroAreas, filtroPersona, asignaciones])
 
   // ── Asignaciones filtradas ───────────────────────────────────────────────────
-  // Las finalizadas siempre se muestran (para ver qué hizo la persona en la semana)
-  const asigsFiltradas = useMemo(() =>
-    asignaciones.filter(a => {
+  const asigsFiltradas = useMemo(() => {
+    return asignaciones.filter(a => {
       if (!personasFiltradas.includes(a.persona)) return false
-      if (a.estado === 'Finalizado') return true  // siempre visible
-      if (filtroEstado === 'Finalizado') return false  // si filtro es solo Finalizado, las "en proceso" no
+      // Filtro por semana: offset 0 → días normales, offset 1 → "Siguiente semana"
+      if (semanaOffset === 0) {
+        const tieneDiaNormal = a.dias.some(d => (DIAS as readonly string[]).includes(d))
+        if (a.estado === 'Finalizado') return tieneDiaNormal  // finalizadas solo en semana actual
+        if (!tieneDiaNormal) return false
+      } else if (semanaOffset === 1) {
+        if (!a.dias.includes('Siguiente semana')) return false
+        if (filtroEstado === 'Finalizado') return false  // no hay finalizadas en semana siguiente
+      } else {
+        return false  // semanas pasadas o futuras lejanas sin datos
+      }
+      if (filtroEstado === 'Finalizado' && a.estado !== 'Finalizado') return false
       return true
-    }),
-    [asignaciones, personasFiltradas, filtroEstado]
-  )
+    })
+  }, [asignaciones, personasFiltradas, filtroEstado, semanaOffset])
 
   function asigsPorPersonaDia(persona: string, dia: Dia) {
+    if (semanaOffset === 1) {
+      // "Siguiente semana" aparece en Lunes de esa semana
+      if (dia !== 'Lunes') return []
+      return asigsFiltradas.filter(a => a.persona === persona && a.dias.includes('Siguiente semana'))
+    }
     return asigsFiltradas.filter(a => a.persona === persona && a.dias.includes(dia))
   }
 
@@ -286,7 +301,7 @@ export default function PlanTrabajoPage() {
     ? asigsFiltradas.find(a => a.key === selected) ?? asignaciones.find(a => a.key === selected) ?? null
     : null
 
-  function handleSaveDias(dias: Dia[]) {
+  function handleSaveDias(dias: DiaPlan[]) {
     if (!selected) return
     updatePlanOverride(selected, { dias })
     setSelected(null)
@@ -359,11 +374,39 @@ export default function PlanTrabajoPage() {
             </div>
 
             {/* Filtros */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Área</span>
-              <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} style={sel}>
-                {areas.map(a => <option key={a}>{a}</option>)}
-              </select>
+              <button
+                onClick={() => setAreaDropOpen(o => !o)}
+                style={{ ...sel, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 160, cursor: 'pointer', background: '#fff' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: '#374151' }}>
+                  {filtroAreas.length === 0 ? 'Todas' : filtroAreas.length === 1 ? filtroAreas[0] : `${filtroAreas.length} áreas`}
+                </span>
+                <ChevronDown style={{ width: 12, height: 12, color: '#9CA3AF', flexShrink: 0 }} />
+              </button>
+              {areaDropOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '6px 0', minWidth: 200, marginTop: 4 }}
+                  onMouseLeave={() => setAreaDropOpen(false)}>
+                  {areas.filter(a => a !== 'Todas').map(a => {
+                    const checked = filtroAreas.includes(a)
+                    return (
+                      <label key={a} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#374151' }}
+                        className="hover:bg-gray-50">
+                        <input type="checkbox" checked={checked}
+                          onChange={() => setFiltroAreas(prev => checked ? prev.filter(x => x !== a) : [...prev, a])}
+                          style={{ width: 14, height: 14, accentColor: '#1A56DB' }} />
+                        {a}
+                      </label>
+                    )
+                  })}
+                  {filtroAreas.length > 0 && (
+                    <button onClick={() => setFiltroAreas([])}
+                      style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#6B7280', background: 'none', border: 'none', borderTop: '1px solid #F3F4F6', cursor: 'pointer', textAlign: 'left', marginTop: 4 }}>
+                      Limpiar selección
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Persona</span>
