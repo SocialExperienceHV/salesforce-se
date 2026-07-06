@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, Check, Users, CalendarDays, RefreshCw, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, Plus, Users, CalendarDays, RefreshCw, ChevronDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -195,6 +195,12 @@ export default function PlanTrabajoPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [semanaOffset, setSemanaOffset] = useState(0)
 
+  // ── Nueva Labor ──────────────────────────────────────────────────────────────
+  const [nuevaProyecto, setNuevaProyecto] = useState('')
+  const [nuevaPersona, setNuevaPersona] = useState('')
+  const [nuevaDia, setNuevaDia] = useState<DiaPlan>('Lunes')
+  const [nuevaOk, setNuevaOk] = useState(false)
+
   // ── Derivar asignaciones desde proyectos ─────────────────────────────────────
   const asignaciones: Asig[] = useMemo(() => {
     const result: Asig[] = []
@@ -318,6 +324,19 @@ export default function PlanTrabajoPage() {
     const nuevoDia = hoy ? nextDia(hoy) : DIAS[0]
     updatePlanOverride(selected!, { dias: [nuevoDia] })
     setSelected(null)
+  }
+
+  function handleNuevaLabor() {
+    if (!nuevaProyecto || !nuevaPersona || !nuevaDia) return
+    const key = `${nuevaPersona}__${nuevaProyecto}`
+    const override = planOverrides[key]
+    const diasActuales = (override?.dias ?? []) as DiaPlan[]
+    if (!diasActuales.includes(nuevaDia)) {
+      const merged = [...diasActuales, nuevaDia].sort((a, b) => (DIA_ORDER[a] ?? 5) - (DIA_ORDER[b] ?? 5))
+      updatePlanOverride(key, { dias: merged, estado: override?.estado ?? 'En proceso' })
+    }
+    setNuevaOk(true)
+    setTimeout(() => { setNuevaOk(false); setNuevaProyecto(''); setNuevaPersona(''); setNuevaDia('Lunes') }, 1500)
   }
 
   // ── Stats rápidas ────────────────────────────────────────────────────────────
@@ -447,6 +466,43 @@ export default function PlanTrabajoPage() {
                 <span style={{ fontSize: 12, color, fontWeight: 500 }}>{label}</span>
               </div>
             ))}
+          </div>
+
+          {/* Nueva Labor */}
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nueva Labor</span>
+              <span style={{ fontSize: 12, color: '#6B7280' }}>Agrega una tarea desde cualquier proyecto activo</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Proyecto</span>
+                <select value={nuevaProyecto} onChange={e => setNuevaProyecto(e.target.value)} style={{ ...sel, minWidth: 200 }}>
+                  <option value="">Seleccionar proyecto...</option>
+                  {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Persona</span>
+                <select value={nuevaPersona} onChange={e => setNuevaPersona(e.target.value)} style={{ ...sel, minWidth: 160 }}>
+                  <option value="">Seleccionar persona...</option>
+                  {personasStore.map(p => <option key={p.nombre} value={p.nombre}>{p.nombre}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Día</span>
+                <select value={nuevaDia} onChange={e => setNuevaDia(e.target.value as DiaPlan)} style={{ ...sel, minWidth: 130 }}>
+                  {DIAS_PANEL.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <button onClick={handleNuevaLabor}
+                disabled={!nuevaProyecto || !nuevaPersona}
+                style={{ height: 34, padding: '0 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: nuevaProyecto && nuevaPersona ? 'pointer' : 'not-allowed',
+                  background: nuevaOk ? '#059669' : (nuevaProyecto && nuevaPersona ? '#1A56DB' : '#E5E7EB'),
+                  color: nuevaProyecto && nuevaPersona ? '#fff' : '#9CA3AF', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                {nuevaOk ? <><Check style={{ width: 14, height: 14 }} /> Agregada</> : <><Plus style={{ width: 14, height: 14 }} /> Agregar labor</>}
+              </button>
+            </div>
           </div>
 
           {/* Matriz */}
