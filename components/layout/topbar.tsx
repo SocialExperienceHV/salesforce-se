@@ -16,7 +16,8 @@ const breadcrumbs: Record<string, { parent?: string; parentHref?: string; label:
   '/plan-trabajo':    { parent: 'Operación', label: 'Plan de trabajo' },
   '/personas':        { parent: 'Equipo', label: 'Personas' },
   '/prospeccion':     { label: 'Prospección Comercial' },
-  '/reportes':        { label: 'Reportes' },
+  '/tarjeta-credito': { label: 'Tarjeta Crédito' },
+  '/reportes':        { label: 'Reporte Legalizaciones' },
   '/administracion':  { label: 'Administración' },
 }
 

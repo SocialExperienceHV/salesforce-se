@@ -81,11 +81,11 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
-const timeOpts = Array.from({ length: 26 }, (_, i) => {
+const timeOpts = Array.from({ length: 35 }, (_, i) => {
   const h = Math.floor(i / 2) + 7
   const m = i % 2 === 0 ? '00' : '30'
   return `${String(h).padStart(2,'0')}:${m}`
-})
+}).concat(['24:00'])
 
 // ─── Shared styles ─────────────────────────────────────────────────────────────
 const selectStyle = {

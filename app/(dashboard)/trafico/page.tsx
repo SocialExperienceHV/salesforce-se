@@ -284,7 +284,7 @@ export default function TraficoPage() {
   )
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Download, Clock, TrendingUp, Users, DollarSign } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Clock, TrendingUp, Users, DollarSign, ChevronsUpDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -25,6 +25,7 @@ export default function NominaPage() {
   const today = new Date()
   const [mes, setMes] = useState(today.getMonth())
   const [anio, setAnio] = useState(today.getFullYear())
+  const [sortAZ, setSortAZ] = useState(false)
 
   function navMes(dir: 1 | -1) {
     let m = mes + dir
@@ -71,6 +72,11 @@ export default function NominaPage() {
     const costoImputado = p.costoMensual // siempre se paga el total
     return { ...p, horas, ocupacion, costoHora, costoImputado }
   }), [personasStore, horasPorPersona])
+
+  const filasOrdenadas = useMemo(
+    () => sortAZ ? [...filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')) : filas,
+    [filas, sortAZ]
+  )
 
   // KPIs
   const totalNomina = personasStore.reduce((s, p) => s + p.costoMensual, 0)
@@ -168,13 +174,20 @@ export default function NominaPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                {['Persona', 'Área', 'Cargo', 'Costo mensual nómina', 'Horas registradas', '% Ocupación', 'Costo/hora real', 'Proyectos del mes'].map(h => (
+                <th style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => setSortAZ(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: sortAZ ? '#1A56DB' : '#6B7280', padding: 0 }}>
+                    Persona
+                    <ChevronsUpDown style={{ width: 13, height: 13 }} />
+                  </button>
+                </th>
+                {['Área', 'Cargo', 'Costo mensual nómina', 'Horas registradas', '% Ocupación', 'Costo/hora real', 'Proyectos del mes'].map(h => (
                   <th key={h} style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filas.map((f, i) => {
+              {filasOrdenadas.map((f, i) => {
                 const isLast = i === filas.length - 1
                 const td: React.CSSProperties = { padding: '12px 16px', fontSize: 13, color: '#374151', borderBottom: isLast ? 'none' : '1px solid #F3F4F6', verticalAlign: 'middle' }
                 const proyectosPersona = Object.keys(desglose[f.nombre] ?? {})

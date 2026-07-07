@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const FASES = [
-  'Contacto Digital',
+  'Contacto Inicial',
   'Credenciales Enviadas',
   'Credenciales Presentadas',
   'Brief Recibido',
@@ -17,7 +17,7 @@ const FASES = [
 ] as const
 
 const FASE_STYLE: Record<string, { bg: string; color: string }> = {
-  'Contacto Digital':         { bg: '#EFF6FF', color: '#1D4ED8' },
+  'Contacto Inicial':         { bg: '#EFF6FF', color: '#1D4ED8' },
   'Credenciales Enviadas':    { bg: '#EEF2FF', color: '#4338CA' },
   'Credenciales Presentadas': { bg: '#F5F3FF', color: '#6D28D9' },
   'Brief Recibido':           { bg: '#FFFBEB', color: '#B45309' },
@@ -114,8 +114,8 @@ function FechaTextoCell({ fecha, texto, onSave }: {
 function NuevoProspectoModal({ onClose, kams }: { onClose: () => void; kams: string[] }) {
   const { addProspecto } = useStore()
   const [form, setForm] = useState({
-    empresa: '', contacto: '', email: '', cargo: '', origen: '',
-    primerContactoPersona: '', comercial: '', fase: 'Contacto Digital',
+    empresa: '', contacto: '', telefono: '', email: '', cargo: '', origen: '',
+    primerContactoPersona: '', comercial: '', fase: 'Contacto Inicial',
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -149,7 +149,11 @@ function NuevoProspectoModal({ onClose, kams }: { onClose: () => void; kams: str
               <label style={lbl}>Cargo</label>
               <input value={form.cargo} onChange={e => setForm(f => ({...f, cargo: e.target.value}))} placeholder="Cargo del contacto" style={inp} />
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
+            <div>
+              <label style={lbl}>Teléfono</label>
+              <input type="tel" value={form.telefono} onChange={e => setForm(f => ({...f, telefono: e.target.value}))} placeholder="Número de contacto" style={inp} />
+            </div>
+            <div>
               <label style={lbl}>Email</label>
               <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} placeholder="correo@empresa.com" style={inp} />
             </div>
@@ -204,15 +208,15 @@ export default function ProspeccionPage() {
 
   const [search, setSearch] = useState('')
   const [filtroFase, setFiltroFase] = useState('Todos')
-  const [filtroComercial, setFiltroComercial] = useState('Todos')
+  const [filtroContacto, setFiltroContacto] = useState('Todos')
   const [showModal, setShowModal] = useState(false)
 
   const filtered = useMemo(() => prospectos.filter(p => {
     if (search && !p.empresa.toLowerCase().includes(search.toLowerCase()) && !(p.contacto ?? '').toLowerCase().includes(search.toLowerCase())) return false
     if (filtroFase !== 'Todos' && p.fase !== filtroFase) return false
-    if (filtroComercial !== 'Todos' && p.comercial !== filtroComercial) return false
+    if (filtroContacto !== 'Todos' && p.primerContactoPersona !== filtroContacto) return false
     return true
-  }), [prospectos, search, filtroFase, filtroComercial])
+  }), [prospectos, search, filtroFase, filtroContacto])
 
   // KPIs
   const activos   = prospectos.filter(p => p.fase !== 'No avanza / Descartado').length
@@ -234,7 +238,7 @@ export default function ProspeccionPage() {
   const td: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid #F3F4F6', verticalAlign: 'top' }
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, height: '100%', overflowY: 'auto', boxSizing: 'border-box' }}>
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, boxSizing: 'border-box' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -282,11 +286,11 @@ export default function ProspeccionPage() {
           <option value="Todos">Todas las fases</option>
           {FASES.map(f => <option key={f}>{f}</option>)}
         </select>
-        <select value={filtroComercial} onChange={e => setFiltroComercial(e.target.value)} style={{ ...sel, minWidth: 140 }}>
-          <option value="Todos">Todo el equipo</option>
-          {kams.map(k => <option key={k}>{k}</option>)}
+        <select value={filtroContacto} onChange={e => setFiltroContacto(e.target.value)} style={{ ...sel, minWidth: 140 }}>
+          <option value="Todos">Contacto: Todos</option>
+          {PRIMER_CONTACTO_OPTIONS.map(k => <option key={k}>{k}</option>)}
         </select>
-        <button onClick={() => { setSearch(''); setFiltroFase('Todos'); setFiltroComercial('Todos') }}
+        <button onClick={() => { setSearch(''); setFiltroFase('Todos'); setFiltroContacto('Todos') }}
           style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 12px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#6B7280', background: '#fff', cursor: 'pointer' }}>
           <RefreshCw style={{ width: 12, height: 12 }} /> Limpiar
         </button>

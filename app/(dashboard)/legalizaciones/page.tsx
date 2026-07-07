@@ -65,8 +65,7 @@ function DetallePanel({ leg, onClose, onUpdate }: {
         {/* Info general */}
         {([
           ['Responsable', leg.responsable],
-          ['Proyecto', leg.proyecto],
-          ['Centro de costo', leg.centroCosto],
+
           ['Tipo de legalización', leg.tipoLegalizacion],
           ['Fecha', leg.fecha],
         ] as [string, string][]).map(([k, v]) => (
@@ -130,16 +129,36 @@ function DetallePanel({ leg, onClose, onUpdate }: {
         </div>
 
         {/* Soportes */}
-        {leg.gastos.some(g => g.soporteNombre) && (
+        {leg.gastos.some(g => g.soporteNombre || g.soporteCuentaNombre) && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
-              Soportes ({leg.gastos.filter(g => g.soporteNombre).length})
+              Soportes ({leg.gastos.filter(g => g.soporteNombre || g.soporteCuentaNombre).length})
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {leg.gastos.filter(g => g.soporteNombre).map(g => (
-                <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: '#374151' }}>
+              {leg.gastos.filter(g => g.soporteNombre && g.tipoFactura !== 'Cuenta de cobro').map(g => (
+                <div key={`fe-${g.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: '#374151', background: '#F9FAFB' }}>
                   <FileText style={{ width: 12, height: 12, color: '#6B7280' }} />
-                  <span>{g.soporteNombre}</span>
+                  <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.soporteNombre}</span>
+                  <span style={{ fontSize: 10, color: '#9CA3AF' }}>FE</span>
+                  {g.soporteData && (
+                    <button onClick={() => { const w = window.open(); w?.document.write(`<iframe src="${g.soporteData}" style="width:100%;height:100vh;border:none"></iframe>`) }}
+                      style={{ padding: '2px 6px', border: '1px solid #BFDBFE', borderRadius: 4, color: '#1D4ED8', background: '#EFF6FF', cursor: 'pointer' }}>
+                      <Eye style={{ width: 11, height: 11 }} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {leg.gastos.filter(g => g.soporteCuentaNombre).map(g => (
+                <div key={`cc-${g.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: '1px solid #BFDBFE', borderRadius: 6, fontSize: 11, color: '#374151', background: '#EFF6FF' }}>
+                  <FileText style={{ width: 12, height: 12, color: '#1D4ED8' }} />
+                  <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.soporteCuentaNombre}</span>
+                  <span style={{ fontSize: 10, color: '#1D4ED8', fontWeight: 600 }}>CC</span>
+                  {g.soporteCuentaData && (
+                    <button onClick={() => { const w = window.open(); w?.document.write(`<iframe src="${g.soporteCuentaData}" style="width:100%;height:100vh;border:none"></iframe>`) }}
+                      style={{ padding: '2px 6px', border: '1px solid #BFDBFE', borderRadius: 4, color: '#1D4ED8', background: '#fff', cursor: 'pointer' }}>
+                      <Eye style={{ width: 11, height: 11 }} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -253,7 +272,10 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
   const inp: React.CSSProperties = { height: 36, padding: '0 10px', fontSize: 13, border: '1px solid #E5E7EB', borderRadius: 7, outline: 'none', color: '#111827', background: '#fff', width: '100%', boxSizing: 'border-box' }
   const label: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, display: 'block' }
 
+  const ccInvalidos = gastos.filter(g => g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto))
+
   function handleGuardar(estado: Legalizacion['estado']) {
+    if (ccInvalidos.length > 0) return
     const entrada = { fecha: today(), usuario: CURRENT_USER.nombre, accion: estado === 'En revisión' ? 'Enviada a revisión' : 'Guardada como borrador' }
     const historial = initial?.historial ? [...initial.historial, entrada] : [{ fecha: today(), usuario: CURRENT_USER.nombre, accion: 'Creada' }, entrada]
     onSave({
@@ -267,7 +289,7 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
+    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '32px 24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
         <button onClick={onCancel} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}>
@@ -300,7 +322,7 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
             </div>
             <div>
               <label style={label}>Tipo de legalización</label>
-              <select value={tipoLeg} onChange={e => setTipoLeg(e.target.value as Legalizacion['tipoLegalizacion'])} style={inp}>
+              <select value={tipoLeg} onChange={e => { const v = e.target.value as Legalizacion['tipoLegalizacion']; setTipoLeg(v); if (v === 'Reembolso') setAnticipo(0) }} style={inp}>
                 <option>Reembolso</option>
                 <option>Legalización de anticipo</option>
               </select>
@@ -368,9 +390,14 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
                 )}
                 {gastos.map(g => (
                   <tr key={g.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                    <td style={{ padding: '6px 8px' }}>
+                    <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       <input value={g.centroCosto} onChange={e => updateGasto(g.id, { centroCosto: e.target.value })}
-                        style={{ ...inp, width: 70 }} />
+                        style={{ ...inp, width: 70, borderColor: g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto) ? '#EF4444' : undefined }} />
+                      {g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto) && (
+                        <div style={{ fontSize: 10, color: '#EF4444', marginTop: 3, width: 70, lineHeight: 1.3 }}>
+                          CC no existe
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '6px 8px' }}>
                       <select value={g.tipoGasto} onChange={e => updateGasto(g.id, { tipoGasto: e.target.value })}
@@ -379,7 +406,16 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
                       </select>
                     </td>
                     <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                      <select value={g.tipoFactura ?? 'FE'} onChange={e => updateGasto(g.id, { tipoFactura: e.target.value as 'FE' | 'Cuenta de cobro', cedulaCuentaCobro: '', soporteCuentaNombre: undefined, soporteCuentaData: undefined })}
+                      <select value={g.tipoFactura ?? 'FE'} onChange={e => {
+                        const nuevo = e.target.value as 'FE' | 'Cuenta de cobro'
+                        const cambio: Partial<GastoLegalizacion> = { tipoFactura: nuevo }
+                        if (nuevo !== g.tipoFactura) {
+                          cambio.cedulaCuentaCobro = ''
+                          cambio.soporteCuentaNombre = undefined
+                          cambio.soporteCuentaData = undefined
+                        }
+                        updateGasto(g.id, cambio)
+                      }}
                         style={{ ...inp, width: 130 }}>
                         <option value="FE">FE</option>
                         <option value="Cuenta de cobro">Cuenta de cobro</option>
@@ -390,20 +426,29 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
                             value={g.cedulaCuentaCobro ?? ''}
                             onChange={e => updateGasto(g.id, { cedulaCuentaCobro: e.target.value })}
                             placeholder="No. cédula"
-                            style={{ ...inp, width: 122, fontSize: 11 }}
+                            style={{ ...inp, width: 130, fontSize: 11 }}
                           />
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px', height: 26, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: g.soporteCuentaNombre ? '#1A56DB' : '#6B7280', background: g.soporteCuentaNombre ? '#EFF6FF' : '#F9FAFB', cursor: 'pointer', whiteSpace: 'nowrap', width: 122, overflow: 'hidden', boxSizing: 'border-box' }}>
-                            <Paperclip style={{ width: 10, height: 10, flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.soporteCuentaNombre ?? 'Adjuntar CC'}</span>
-                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
-                              onChange={e => {
-                                const f = e.target.files?.[0]
-                                if (!f) return
-                                const reader = new FileReader()
-                                reader.onload = ev => updateGasto(g.id, { soporteCuentaNombre: f.name, soporteCuentaData: ev.target?.result as string })
-                                reader.readAsDataURL(f)
-                              }} />
-                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', height: 28, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: g.soporteCuentaNombre ? '#1A56DB' : '#6B7280', background: g.soporteCuentaNombre ? '#EFF6FF' : '#F9FAFB', cursor: 'pointer', flex: 1, overflow: 'hidden', boxSizing: 'border-box' }}>
+                              <Paperclip style={{ width: 10, height: 10, flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.soporteCuentaNombre ?? 'Adjuntar CC'}</span>
+                              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                                onChange={e => {
+                                  const f = e.target.files?.[0]
+                                  if (!f) return
+                                  const reader = new FileReader()
+                                  reader.onload = ev => updateGasto(g.id, { soporteCuentaNombre: f.name, soporteCuentaData: ev.target?.result as string })
+                                  reader.readAsDataURL(f)
+                                }} />
+                            </label>
+                            {g.soporteCuentaData && (
+                              <button onClick={() => { const w = window.open(); w?.document.write(`<iframe src="${g.soporteCuentaData}" style="width:100%;height:100vh;border:none"></iframe>`) }}
+                                style={{ height: 28, padding: '0 7px', border: '1px solid #BFDBFE', borderRadius: 6, color: '#1D4ED8', background: '#EFF6FF', cursor: 'pointer', flexShrink: 0 }}
+                                title="Ver CC">
+                                <Eye style={{ width: 12, height: 12 }} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </td>
@@ -423,14 +468,27 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
                       {g.total.toLocaleString('es-CO')}
                     </td>
                     <td style={{ padding: '6px 8px' }}>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={el => { fileRefs.current[g.id] = el }}
-                        onChange={e => e.target.files?.[0] && handleFile(g.id, e.target.files[0])}
-                        style={{ display: 'none' }} />
-                      <button onClick={() => fileRefs.current[g.id]?.click()}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', height: 30, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: g.soporteNombre ? '#1A56DB' : '#6B7280', background: g.soporteNombre ? '#EFF6FF' : '#F9FAFB', cursor: 'pointer', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden' }}>
-                        <Paperclip style={{ width: 11, height: 11, flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.soporteNombre ?? 'Adjuntar'}</span>
-                      </button>
+                      {g.tipoFactura === 'Cuenta de cobro' ? null : (
+                        <>
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={el => { fileRefs.current[g.id] = el }}
+                            onChange={e => e.target.files?.[0] && handleFile(g.id, e.target.files[0])}
+                            style={{ display: 'none' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <button onClick={() => fileRefs.current[g.id]?.click()}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', height: 30, border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 11, color: g.soporteNombre ? '#1A56DB' : '#6B7280', background: g.soporteNombre ? '#EFF6FF' : '#F9FAFB', cursor: 'pointer', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden' }}>
+                              <Paperclip style={{ width: 11, height: 11, flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.soporteNombre ?? 'Adjuntar'}</span>
+                            </button>
+                            {g.soporteData && (
+                              <button onClick={() => { const w = window.open(); w?.document.write(`<iframe src="${g.soporteData}" style="width:100%;height:100vh;border:none"></iframe>`) }}
+                                style={{ height: 30, padding: '0 7px', border: '1px solid #BFDBFE', borderRadius: 6, fontSize: 11, color: '#1D4ED8', background: '#EFF6FF', cursor: 'pointer' }}
+                                title="Ver soporte">
+                                <Eye style={{ width: 12, height: 12 }} />
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td style={{ padding: '6px 8px' }}>
                       <button onClick={() => removeGasto(g.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
@@ -473,8 +531,14 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={label}>Anticipo recibido ($)</label>
-                <input type="number" value={anticipo || ''} onChange={e => setAnticipo(+e.target.value)}
-                  style={inp} placeholder="0" />
+                {tipoLeg === 'Reembolso' ? (
+                  <div style={{ ...inp, display: 'flex', alignItems: 'center', color: '#9CA3AF', fontSize: 13, background: '#F9FAFB', cursor: 'not-allowed' }}>
+                    $ 0 — Reembolso no aplica anticipo
+                  </div>
+                ) : (
+                  <input type="number" value={anticipo || ''} onChange={e => setAnticipo(+e.target.value)}
+                    style={inp} placeholder="0" />
+                )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                 {[
@@ -506,8 +570,9 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
           style={{ height: 38, padding: '0 18px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, color: '#374151', background: '#fff', cursor: 'pointer' }}>
           Cancelar
         </button>
-        <button onClick={() => handleGuardar('En revisión')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 24px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', background: '#1D4ED8', cursor: 'pointer' }}>
+        <button onClick={() => handleGuardar('En revisión')} disabled={ccInvalidos.length > 0}
+          title={ccInvalidos.length > 0 ? 'Corrige los centros de costo inválidos antes de enviar' : undefined}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 24px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', background: ccInvalidos.length > 0 ? '#93C5FD' : '#1D4ED8', cursor: ccInvalidos.length > 0 ? 'not-allowed' : 'pointer', opacity: ccInvalidos.length > 0 ? 0.7 : 1 }}>
           <Send style={{ width: 14, height: 14 }} /> Enviar a revisión
         </button>
       </div>
@@ -517,19 +582,20 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
 
 // ─── Vista principal — Lista / Dashboard ─────────────────────────────────────────
 export default function LegalizacionesPage() {
-  const { legalizaciones, addLegalizacion, updateLegalizacion } = useStore()
+  const { legalizaciones, addLegalizacion, updateLegalizacion, currentUser, personasStore } = useStore()
 
   const [vista, setVista] = useState<'lista' | 'formulario'>('lista')
   const [detalle, setDetalle] = useState<Legalizacion | null>(null)
   const [editando, setEditando] = useState<Legalizacion | undefined>(undefined)
   const [printLeg, setPrintLeg] = useState<Legalizacion | null>(null)
+  const [soportePopover, setSoportePopover] = useState<string | null>(null)
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
   const [filtroPeriodo, setFiltroPeriodo] = useState('Todos')
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [filtroTipo, setFiltroTipo] = useState('Todos')
-  const [filtroResponsable, setFiltroResponsable] = useState('Todos')
+  const [filtroResponsable, setFiltroResponsable] = useState(currentUser?.nombre ?? 'Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
 
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -564,11 +630,11 @@ export default function LegalizacionesPage() {
     })
   }, [legalizaciones, filtroEstado, filtroTipo, filtroResponsable, filtroMes, busqueda])
 
-  const totalLeg     = legalizaciones.reduce((s, l) => s + totalLegalizacion(l), 0)
-  const totalAnticip   = legalizaciones.filter(l => l.tipoLegalizacion === 'Legalización de anticipo').reduce((s, l) => s + totalLegalizacion(l), 0)
-  const totalReemb     = legalizaciones.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
-  const totalCuentaCob = legalizaciones.reduce((s, l) => s + l.gastos.filter(g => g.tipoFactura === 'Cuenta de cobro').reduce((gs, g) => gs + g.total, 0), 0)
-  const pendientes   = legalizaciones.filter(l => l.estado === 'En revisión').length
+  const totalLeg     = legsFiltradas.reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalAnticip   = legsFiltradas.filter(l => l.tipoLegalizacion === 'Legalización de anticipo').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalReemb     = legsFiltradas.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalCuentaCob = legsFiltradas.reduce((s, l) => s + l.gastos.filter(g => g.tipoFactura === 'Cuenta de cobro').reduce((gs, g) => gs + g.total, 0), 0)
+  const pendientes   = legsFiltradas.filter(l => l.estado === 'En revisión').length
   const aprobadas    = legalizaciones.filter(l => l.estado === 'Aprobada').length
 
   function handleSaveForm(data: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) {
@@ -600,8 +666,8 @@ export default function LegalizacionesPage() {
   const sel: React.CSSProperties = { height: 34, padding: '0 10px', fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 7, outline: 'none', color: '#374151', background: '#fff' }
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '28px 28px 40px' }}>
+    <div style={{ display: 'flex', minHeight: '100%' }}>
+      <div style={{ flex: 1, padding: '28px 28px 40px' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -684,19 +750,21 @@ export default function LegalizacionesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                {['Código', 'Fecha', 'Responsable', 'Proyecto', 'Centro de costo', 'Tipo', 'Anticipo', 'Total legalizado', 'Saldo', 'Estado', 'Soportes', 'Acción'].map(h => (
+                {['Código', 'Fecha', 'Responsable', 'Tipo', 'Anticipo', 'Total legalizado', 'Saldo', 'Estado', 'Soportes', 'Acción'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {legsFiltradas.length === 0 && (
-                <tr><td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay legalizaciones que coincidan con los filtros.</td></tr>
+                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay legalizaciones que coincidan con los filtros.</td></tr>
               )}
               {legsFiltradas.map(l => {
                 const tot = totalLegalizacion(l)
                 const saldo = l.anticipo - tot
-                const soportes = l.gastos.filter(g => g.soporteNombre).length
+                const soportesFE = l.gastos.filter(g => g.soporteNombre && g.tipoFactura !== 'Cuenta de cobro')
+                const soportesCC = l.gastos.filter(g => g.soporteCuentaNombre)
+                const soportes = soportesFE.length + soportesCC.length
                 const activa = detalle?.id === l.id
                 return (
                   <tr key={l.id} onClick={() => setDetalle(activa ? null : l)}
@@ -717,8 +785,6 @@ export default function LegalizacionesPage() {
                         <span style={{ fontSize: 13, fontWeight: 500, color: '#111827', whiteSpace: 'nowrap' }}>{l.responsable}</span>
                       </div>
                     </td>
-                    <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.proyecto}</td>
-                    <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151' }}>{l.centroCosto}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: l.tipoLegalizacion === 'Reembolso' ? '#F0FDF4' : '#FFF7ED', color: l.tipoLegalizacion === 'Reembolso' ? '#15803D' : '#C2410C' }}>
                         {l.tipoLegalizacion === 'Legalización de anticipo' ? 'Anticipo' : 'Reembolso'}
@@ -730,12 +796,47 @@ export default function LegalizacionesPage() {
                       {fmt(Math.abs(saldo))}
                     </td>
                     <td style={{ padding: '12px 14px' }}><EstadoBadge estado={l.estado} /></td>
-                    <td style={{ padding: '12px 14px' }}>
-                      {soportes > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280' }}>
-                          <Paperclip style={{ width: 12, height: 12 }} /> {soportes}
+                    <td style={{ padding: '12px 14px', position: 'relative' }} onClick={e => e.stopPropagation()}>
+                      {soportes > 0 ? (
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <button
+                            onClick={e => { e.stopPropagation(); setSoportePopover(soportePopover === l.id ? null : l.id) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#374151', background: '#F9FAFB', cursor: 'pointer' }}>
+                            <Paperclip style={{ width: 12, height: 12 }} /> {soportes}
+                          </button>
+                          {soportePopover === l.id && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 260, padding: 8 }}>
+                              <div style={{ fontSize: 10, color: '#9CA3AF', padding: '2px 8px 6px', borderBottom: '1px solid #F3F4F6', marginBottom: 4 }}>
+                                Clic → ver · Doble clic → descargar
+                              </div>
+                              {soportesFE.map(g => (
+                                <div key={g.id}
+                                  onClick={() => { if (g.soporteData) { const w = window.open(); w?.document.write(`<iframe src="${g.soporteData}" style="width:100%;height:100vh;border:none"></iframe>`) } }}
+                                  onDoubleClick={() => { if (g.soporteData && g.soporteNombre) { const a = document.createElement('a'); a.href = g.soporteData; a.download = g.soporteNombre; a.click() } }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F9FAFB'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                                  <FileText style={{ width: 12, height: 12, color: '#6B7280', flexShrink: 0 }} />
+                                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>{g.soporteNombre}</span>
+                                  <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>FE</span>
+                                </div>
+                              ))}
+                              {soportesCC.map(g => (
+                                <div key={g.id}
+                                  onClick={() => { if (g.soporteCuentaData) { const w = window.open(); w?.document.write(`<iframe src="${g.soporteCuentaData}" style="width:100%;height:100vh;border:none"></iframe>`) } }}
+                                  onDoubleClick={() => { if (g.soporteCuentaData && g.soporteCuentaNombre) { const a = document.createElement('a'); a.href = g.soporteCuentaData; a.download = g.soporteCuentaNombre; a.click() } }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#EFF6FF'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                                  <FileText style={{ width: 12, height: 12, color: '#1D4ED8', flexShrink: 0 }} />
+                                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151' }}>{g.soporteCuentaNombre}</span>
+                                  <span style={{ fontSize: 10, color: '#1D4ED8', flexShrink: 0, background: '#DBEAFE', padding: '1px 5px', borderRadius: 4 }}>CC</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ) : <span style={{ fontSize: 12, color: '#D1D5DB' }}>—</span>}
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -771,17 +872,18 @@ export default function LegalizacionesPage() {
       )}
 
       {/* Vista de impresión PDF */}
-      {printLeg && <PrintView leg={printLeg} onClose={() => setPrintLeg(null)} />}
+      {printLeg && <PrintView leg={printLeg} personasStore={personasStore} onClose={() => setPrintLeg(null)} />}
     </div>
   )
 }
 
 // ─── Vista de impresión / PDF ────────────────────────────────────────────────────
-function buildPrintHTML(leg: Legalizacion): string {
+function buildPrintHTML(leg: Legalizacion, personasStore: import('@/lib/store').PersonaStore[]): string {
+  const persona = personasStore.find(p => p.nombre === leg.responsable)
   const total = totalLegalizacion(leg)
   const MIN_ROWS = 18
   const emptyRows = Math.max(0, MIN_ROWS - leg.gastos.length)
-  const docNum = leg.codigo ?? `SE-CB-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
+  const docNum = leg.codigo ?? `SE-LG-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
   const fmtCOP = (n: number) => '$ ' + n.toLocaleString('es-CO')
   const gastoRows = leg.gastos.map(g => `
     <tr>
@@ -835,7 +937,6 @@ function buildPrintHTML(leg: Legalizacion): string {
       <div class="logo-circle"><span>SE</span></div>
       <div class="logo-info">
         <div class="logo-name">Social Experience</div>
-        <div class="logo-sub">@Socialatam</div>
       </div>
     </div>
     <div class="docnum">${docNum}</div>
@@ -843,10 +944,8 @@ function buildPrintHTML(leg: Legalizacion): string {
 
   <table class="fields">
     <tr><td>Fecha:</td><td>${leg.fecha}</td></tr>
-    <tr><td>Tipo Documento:</td><td>${leg.tipoDocumento || 'LEGALIZACION'}</td></tr>
-    <tr><td>Tipo Legalización:</td><td>${leg.tipoLegalizacion.toUpperCase()}</td></tr>
+    <tr><td>Tipo Documento:</td><td>${leg.tipoLegalizacion.toUpperCase()}</td></tr>
     <tr><td>Responsable:</td><td>${leg.responsable.toUpperCase()}</td></tr>
-    <tr><td>NIT:</td><td>901.204.288 - 9</td></tr>
   </table>
 
   <table style="width:100%;margin-bottom:6px">
@@ -858,7 +957,7 @@ function buildPrintHTML(leg: Legalizacion): string {
     </tr>
     <tr>
       <td class="cell" style="font-weight:700">Cedula:</td>
-      <td class="cell"></td><td class="cell"></td><td class="cell"></td>
+      <td class="cell">${persona?.cedula ?? ''}</td><td class="cell"></td><td class="cell"></td>
     </tr>
   </table>
 
@@ -883,16 +982,25 @@ function buildPrintHTML(leg: Legalizacion): string {
     <tr>
       <td class="cell" style="width:150px;font-weight:700">Elaborado Por: <span style="font-weight:400">${initials}</span></td>
       <td class="cell" style="width:160px;font-weight:700">Autorizado Por: <span style="font-weight:400">FAA</span></td>
-      <td class="cell;font-weight:700">Gestionado Por: <span style="font-weight:400">Social Experience SAS</span></td>
+      <td class="cell" style="font-weight:700">Gestionado Por: <span style="font-weight:400">Social Experience SAS</span></td>
       <td class="cell total-cell" style="width:80px">${fmtCOP(total)}</td>
+    </tr>
+    <tr>
+      <td class="cell" colspan="3" style="font-weight:700;text-align:right;padding-right:8px">Anticipo Recibido:</td>
+      <td class="cell total-cell" style="width:80px">${fmtCOP(leg.anticipo)}</td>
+    </tr>
+    <tr>
+      <td class="cell" colspan="3" style="font-weight:700;text-align:right;padding-right:8px">Saldo:</td>
+      <td class="cell total-cell" style="width:80px;color:${(leg.anticipo - total) >= 0 ? '#166534' : '#991B1B'}">${fmtCOP(Math.abs(leg.anticipo - total))}</td>
     </tr>
   </table>
 </body>
 </html>`
 }
 
-function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void }) {
+function PrintView({ leg, personasStore, onClose }: { leg: Legalizacion; personasStore: import('@/lib/store').PersonaStore[]; onClose: () => void }) {
   const total = totalLegalizacion(leg)
+  const persona = personasStore.find(p => p.nombre === leg.responsable)
 
   // Rellena hasta 18 filas como en el formato original
   const MIN_ROWS = 18
@@ -902,8 +1010,8 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
   const cellR: React.CSSProperties = { ...cell, textAlign: 'right' }
   const hCell: React.CSSProperties = { ...cell, background: '#D9D9D9', fontWeight: 700, fontSize: 9, textAlign: 'center' }
 
-  // Número de documento tipo SE-CB-001/26
-  const docNum = leg.codigo ?? `SE-CB-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
+  // Número de documento tipo SE-LG-001/26
+  const docNum = leg.codigo ?? `SE-LG-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
 
   return (
     <>
@@ -931,7 +1039,7 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
             <button onClick={() => {
               const w = window.open('', '_blank', 'width=1100,height=700')
               if (!w) return
-              w.document.write(buildPrintHTML(leg))
+              w.document.write(buildPrintHTML(leg, personasStore))
               w.document.close()
               w.focus()
               setTimeout(() => w.print(), 400)
@@ -949,7 +1057,6 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', lineHeight: 1 }}>Social Experience</div>
-                <div style={{ fontSize: 9, color: '#6B7280' }}>@Socialatam</div>
               </div>
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#111827', letterSpacing: '0.05em' }}>{docNum}</div>
@@ -960,15 +1067,12 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
             <tbody>
               {[
                 ['Fecha:', leg.fecha],
-                ['Tipo Documento:', leg.tipoDocumento || 'LEGALIZACION'],
-                ['No Anticipo:', leg.noAnticipo || leg.tipoLegalizacion.toUpperCase()],
-                ['Fecha Reembolso:', leg.fechaReembolso || leg.fecha],
-                ['Responsable', leg.responsable.toUpperCase()],
-                ['NIT:', '901.204.288 - 9'],
+                ['Tipo Documento:', leg.tipoLegalizacion.toUpperCase()],
+                ['Responsable:', leg.responsable.toUpperCase()],
               ].map(([k, v]) => (
                 <tr key={k}>
                   <td style={{ paddingRight: 16, paddingBottom: 2, fontWeight: 700, fontSize: 10, whiteSpace: 'nowrap' }}>{k}</td>
-                  <td style={{ paddingBottom: 2, fontWeight: k === 'Responsable' || k === 'NIT:' ? 400 : 700, fontSize: 10 }}>{v}</td>
+                  <td style={{ paddingBottom: 2, fontWeight: 700, fontSize: 10 }}>{v}</td>
                 </tr>
               ))}
             </tbody>
@@ -985,7 +1089,7 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
               </tr>
               <tr>
                 <td style={{ ...cell, fontWeight: 700 }}>Cedula:</td>
-                <td style={{ ...cell }}></td>
+                <td style={{ ...cell }}>{persona?.cedula ?? ''}</td>
                 <td style={{ ...cell }}></td>
                 <td style={{ ...cell }}></td>
               </tr>
@@ -996,14 +1100,12 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
             <thead>
               <tr>
-                <th style={{ ...hCell, width: 60 }}>Centro Costos</th>
-                <th style={{ ...hCell, width: 80 }}>Tipo de Gasto</th>
-                <th style={{ ...hCell, width: 70 }}>Ciudad / Fecha</th>
+                <th style={{ ...hCell, width: 65 }}>Centro Costos</th>
+                <th style={{ ...hCell, width: 90 }}>Tipo de Gasto</th>
+                <th style={{ ...hCell, width: 80 }}>Fecha</th>
                 <th style={{ ...hCell }}>Descripcion</th>
-                <th style={{ ...hCell, width: 70 }}>Pesos</th>
-                <th style={{ ...hCell, width: 40 }}>USD</th>
-                <th style={{ ...hCell, width: 55 }}>T. Cambio</th>
-                <th style={{ ...hCell, width: 75 }}>Total</th>
+                <th style={{ ...hCell, width: 80 }}>Pesos</th>
+                <th style={{ ...hCell, width: 80 }}>Total</th>
               </tr>
             </thead>
             <tbody>
@@ -1014,8 +1116,6 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
                   <td style={{ ...cell, textAlign: 'center' }}>{g.ciudadFecha}</td>
                   <td style={{ ...cell }}>{g.descripcion.toUpperCase()}</td>
                   <td style={{ ...cellR }}>$ {g.pesos > 0 ? g.pesos.toLocaleString('es-CO') : ''}</td>
-                  <td style={{ ...cellR }}>{g.usd > 0 ? g.usd : ''}</td>
-                  <td style={{ ...cellR }}>{g.tasaCambio > 0 ? g.tasaCambio.toLocaleString('es-CO') : ''}</td>
                   <td style={{ ...cellR }}>$ {g.total.toLocaleString('es-CO')}</td>
                 </tr>
               ))}
@@ -1023,8 +1123,6 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
               {Array.from({ length: emptyRows }).map((_, i) => (
                 <tr key={`empty-${i}`}>
                   <td style={cell}>&nbsp;</td>
-                  <td style={cell}></td>
-                  <td style={cell}></td>
                   <td style={cell}></td>
                   <td style={cell}></td>
                   <td style={cell}></td>
@@ -1050,6 +1148,22 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
                 </td>
                 <td style={{ ...cellR, width: 75, fontWeight: 800, background: '#D9D9D9' }}>
                   $ {total.toLocaleString('es-CO')}
+                </td>
+              </tr>
+              <tr>
+                <td colSpan={3} style={{ ...cell, fontWeight: 700, textAlign: 'right', paddingRight: 8 }}>
+                  Anticipo Recibido:
+                </td>
+                <td style={{ ...cellR, width: 75, fontWeight: 800, background: '#D9D9D9' }}>
+                  $ {leg.anticipo.toLocaleString('es-CO')}
+                </td>
+              </tr>
+              <tr>
+                <td colSpan={3} style={{ ...cell, fontWeight: 700, textAlign: 'right', paddingRight: 8 }}>
+                  Saldo:
+                </td>
+                <td style={{ ...cellR, width: 75, fontWeight: 800, background: '#D9D9D9', color: (leg.anticipo - total) >= 0 ? '#166534' : '#991B1B' }}>
+                  $ {Math.abs(leg.anticipo - total).toLocaleString('es-CO')}
                 </td>
               </tr>
             </tbody>

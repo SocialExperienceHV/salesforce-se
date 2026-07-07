@@ -1,22 +1,25 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Users, Crown, UserCheck, Plus, Search, X, Pencil, Eye, EyeOff, Camera } from 'lucide-react'
+import { Users, Crown, UserCheck, Plus, Search, X, Pencil, Eye, EyeOff, Camera, ChevronsUpDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { PersonaStore } from '@/lib/store'
+import { ROLES } from '@/lib/permisos'
 
 const AREAS   = ['Comercial', 'Producción', 'Creatividad', 'Audiovisual', 'Diseño gráfico', 'Diseño industrial', 'Administración']
 const CARGOS  = ['KAM', 'Director Producción', 'Director Creativo', 'Líder Creativo', 'Líder Industrial', 'Líder Gráfico', 'Diseñador Gráfico', 'Copy Creativo', 'Diseñador Industrial', 'Audiovisual', 'Productor Sr', 'Coordinador', 'Administrativo', 'Comercial', 'Contabilidad']
-const PERMISOS = ['Super Admin', 'KAM Admin', 'Líder', 'Comercial', 'Usuario', 'Administración']
+const PERMISOS = ROLES
 const AREAS_FILTRO = ['Todas', ...AREAS]
 
 const PERMISO_STYLE: Record<string, { bg: string; color: string }> = {
-  'Super Admin':    { bg: '#FFF1F2', color: '#BE123C' },
-  'KAM Admin':      { bg: '#F5F3FF', color: '#6D28D9' },
-  'Líder':          { bg: '#EFF6FF', color: '#1D4ED8' },
-  'Comercial':      { bg: '#F0FDF4', color: '#15803D' },
-  'Usuario':        { bg: '#F9FAFB', color: '#6B7280' },
-  'Administración': { bg: '#FFFBEB', color: '#B45309' },
+  'Super Admin':       { bg: '#FFF1F2', color: '#BE123C' },
+  'KAM':               { bg: '#F5F3FF', color: '#6D28D9' },
+  'Líder':             { bg: '#EFF6FF', color: '#1D4ED8' },
+  'Líder Producción':  { bg: '#EFF6FF', color: '#1D4ED8' },
+  'Producción':        { bg: '#F0FDF4', color: '#15803D' },
+  'Comercial':         { bg: '#ECFDF5', color: '#059669' },
+  'Administración':    { bg: '#FFFBEB', color: '#B45309' },
+  'Contabilidad':      { bg: '#F9FAFB', color: '#6B7280' },
 }
 
 function initials(nombre: string) {
@@ -66,9 +69,10 @@ function PersonaModal({ persona, onClose, onSave }: {
     cargo:       persona?.cargo       ?? '',
     costoMensual:persona?.costoMensual ?? 0,
     email:       persona?.email       ?? '',
+    cedula:      persona?.cedula      ?? '',
     clave:       persona?.clave       ?? '',
     foto:        persona?.foto        ?? '',
-    permiso:     persona?.permiso     ?? 'Usuario',
+    permiso:     persona?.permiso     ?? 'Producción',
     jefe:        persona?.jefe        ?? '',
     estado:      persona?.estado      ?? 'Activo',
   })
@@ -124,6 +128,8 @@ function PersonaModal({ persona, onClose, onSave }: {
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={lbl}>Correo electrónico *</label>
                 <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@socialexperience.com.co" style={inp} />
+                <label style={lbl}>Cédula</label>
+                <input value={form.cedula ?? ''} onChange={e => setForm(f => ({ ...f, cedula: e.target.value }))} placeholder="Número de cédula" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Clave de acceso *</label>
@@ -180,14 +186,17 @@ export default function PersonasPage() {
   const [filtroArea, setFiltroArea]   = useState('Todas')
   const [showModal, setShowModal]     = useState(false)
   const [editando, setEditando]       = useState<PersonaStore | null>(null)
+  const [sortAZ, setSortAZ]           = useState(false)
 
   const personas = personasStore.filter(p => p.estado !== 'Inactivo' || filtroArea !== 'Activos')
 
-  const filtered = personas.filter(p => {
-    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || (p.email ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchArea   = filtroArea === 'Todas' || p.area === filtroArea
-    return matchSearch && matchArea
-  })
+  const filtered = personas
+    .filter(p => {
+      const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || (p.email ?? '').toLowerCase().includes(search.toLowerCase())
+      const matchArea   = filtroArea === 'Todas' || p.area === filtroArea
+      return matchSearch && matchArea
+    })
+    .sort((a, b) => sortAZ ? a.nombre.localeCompare(b.nombre, 'es') : 0)
 
   const totalActivos = personasStore.filter(p => p.estado !== 'Inactivo').length
 
@@ -202,7 +211,7 @@ export default function PersonasPage() {
   }
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, height: '100%', overflowY: 'auto', boxSizing: 'border-box' }}>
+    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, boxSizing: 'border-box' }}>
 
       {showModal && (
         <PersonaModal onClose={() => setShowModal(false)} onSave={data => { addPersonaStore(data); setShowModal(false) }} />
@@ -261,9 +270,16 @@ export default function PersonasPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={th}>Persona</th>
+              <th style={th}>
+                <button onClick={() => setSortAZ(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: sortAZ ? '#1A56DB' : '#9CA3AF', padding: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Persona
+                  <ChevronsUpDown style={{ width: 13, height: 13 }} />
+                </button>
+              </th>
               <th style={th}>Área / Cargo</th>
               <th style={th}>Correo</th>
+              <th style={th}>Cédula</th>
               <th style={th}>Permiso</th>
               <th style={th}>Clave</th>
               <th style={th}>Costo mensual</th>
@@ -273,7 +289,7 @@ export default function PersonasPage() {
           </thead>
           <tbody>
             {filtered.map((p, idx) => {
-              const ps = PERMISO_STYLE[p.permiso ?? 'Usuario'] ?? PERMISO_STYLE['Usuario']
+              const ps = PERMISO_STYLE[p.permiso ?? 'Producción'] ?? PERMISO_STYLE['Producción']
               const isLast = idx === filtered.length - 1
               return (
                 <tr key={p.id} style={{ borderBottom: isLast ? 'none' : undefined }}
@@ -295,9 +311,10 @@ export default function PersonasPage() {
                     <div style={{ fontSize: 11, color: '#6B7280' }}>{p.cargo}</div>
                   </td>
                   <td style={{ ...td, fontSize: 12, color: '#6B7280' }}>{p.email ?? '—'}</td>
+                  <td style={{ ...td, fontSize: 12, color: '#374151', fontFamily: 'monospace' }}>{p.cedula ?? '—'}</td>
                   <td style={td}>
                     <span style={{ display: 'inline-flex', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: ps.bg, color: ps.color }}>
-                      {p.permiso ?? 'Usuario'}
+                      {p.permiso ?? 'Producción'}
                     </span>
                   </td>
                   <td style={td}>

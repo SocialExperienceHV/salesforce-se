@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, Check, Plus, Users, CalendarDays, RefreshCw, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, Plus, Users, CalendarDays, RefreshCw, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -188,12 +188,48 @@ export default function PlanTrabajoPage() {
   const { proyectos, personasStore, planOverrides, updatePlanOverride, updateProyecto, currentUser } = useStore()
 
   const [vista, setVista] = useState<'equipo' | 'misemana'>('equipo')
+  const [fullscreen, setFullscreen] = useState(false)
   const [filtroAreas, setFiltroAreas] = useState<string[]>([])
   const [areaDropOpen, setAreaDropOpen] = useState(false)
   const [filtroPersona, setFiltroPersona] = useState('Todas')
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [selected, setSelected] = useState<string | null>(null)
   const [semanaOffset, setSemanaOffset] = useState(0)
+
+  // ── Carry-forward: mueve labores "En proceso" de días pasados al siguiente día ─
+  useEffect(() => {
+    const hoy = new Date()
+    const diaSemana = hoy.getDay() // 0=Dom,1=Lun,...,5=Vie,6=Sab
+    // Solo aplica en días de semana laboral (Lun–Vie)
+    if (diaSemana === 0 || diaSemana === 6) return
+
+    const diaHoyIdx = diaSemana - 1 // 0=Lun,1=Mar,...,4=Vie
+
+    Object.entries(planOverrides).forEach(([key, override]) => {
+      if (override.estado === 'Finalizado') return
+      const dias = (override.dias ?? []) as DiaPlan[]
+
+      // Días normales que ya pasaron (índice < hoy)
+      const pasados = dias.filter(d => {
+        const idx = DIAS.indexOf(d as Dia)
+        return idx !== -1 && idx < diaHoyIdx
+      })
+      if (pasados.length === 0) return
+
+      // Calcular el siguiente día hábil: si hoy es viernes (idx=4) → 'Siguiente semana', si no → día siguiente
+      const nextDiaPlan: DiaPlan = diaHoyIdx === 4 ? 'Siguiente semana' : DIAS[diaHoyIdx]
+
+      // Quitar días pasados, agregar siguiente si no está ya
+      const sinPasados = dias.filter(d => !pasados.includes(d))
+      const nuevoDias: DiaPlan[] = sinPasados.includes(nextDiaPlan)
+        ? sinPasados
+        : [...sinPasados, nextDiaPlan]
+
+      updatePlanOverride(key, { dias: nuevoDias, estado: override.estado })
+    })
+  // Solo corre una vez al montar la página
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Nueva Labor ──────────────────────────────────────────────────────────────
   const [nuevaLaborOpen, setNuevaLaborOpen] = useState(false)
@@ -375,7 +411,7 @@ export default function PlanTrabajoPage() {
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
 
       {/* ── Main ─────────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={fullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#F9FAFB', overflowY: 'auto', display: 'flex', flexDirection: 'column' } : { flex: 1, minWidth: 0 }}>
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
 
           {/* Título */}
@@ -461,6 +497,13 @@ export default function PlanTrabajoPage() {
                   {label}
                 </button>
               ))}
+              <button onClick={() => setFullscreen(f => !f)}
+                title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, fontSize: 13, cursor: 'pointer', border: 'none',
+                  background: fullscreen ? '#1A56DB' : '#fff', color: fullscreen ? '#fff' : '#374151',
+                  boxShadow: fullscreen ? 'none' : '0 0 0 1px #E5E7EB inset', transition: 'all 0.15s' }}>
+                {fullscreen ? <Minimize2 style={{ width: 15, height: 15 }} /> : <Maximize2 style={{ width: 15, height: 15 }} />}
+              </button>
             </div>
           </div>
 

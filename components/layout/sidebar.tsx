@@ -5,28 +5,34 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, Search,
   FolderOpen, TrendingUp, Layers, Calendar,
-  List, BarChart3, Settings, ChevronLeft, Wallet, Receipt
+  List, BarChart3, Settings, ChevronLeft, Wallet, Receipt, CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useStore } from '@/lib/store'
+import { tieneAcceso } from '@/lib/permisos'
 
-const navItems = [
-  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
-  { href: '/clientes',      label: 'Clientes',         icon: Building2 },
-  { href: '/proyectos',     label: 'Proyectos',        icon: FolderOpen },
-  { href: '/seguimiento',   label: 'Seguimiento',      icon: TrendingUp },
-  { href: '/trafico',       label: 'Tráfico',          icon: Layers },
-  { href: '/calendar',      label: 'Calendar',         icon: Calendar },
-  { href: '/plan-trabajo',  label: 'Plan de trabajo',  icon: List },
-  { href: '/nomina',        label: 'Nómina',            icon: Wallet },
-  { href: '/personas',      label: 'Equipo',            icon: Users },
-  { href: '/prospeccion',   label: 'Prospección',      icon: Search },
-  { href: '/legalizaciones', label: 'Legalizaciones',   icon: Receipt },
-  { href: '/reportes',      label: 'Reportes',         icon: BarChart3 },
-  { href: '/administracion',label: 'Administración',   icon: Settings },
+const ALL_NAV = [
+  { href: '/dashboard',       label: 'Dashboard',              icon: LayoutDashboard },
+  { href: '/clientes',        label: 'Clientes',               icon: Building2 },
+  { href: '/proyectos',       label: 'Proyectos',              icon: FolderOpen },
+  { href: '/seguimiento',     label: 'Seguimiento',            icon: TrendingUp },
+  { href: '/trafico',         label: 'Tráfico',                icon: Layers },
+  { href: '/calendar',        label: 'Calendar',               icon: Calendar },
+  { href: '/plan-trabajo',    label: 'Plan de trabajo',        icon: List },
+  { href: '/nomina',          label: 'Nómina',                 icon: Wallet },
+  { href: '/personas',        label: 'Equipo',                 icon: Users },
+  { href: '/prospeccion',     label: 'Prospección',            icon: Search },
+  { href: '/legalizaciones',  label: 'Legalizaciones',         icon: Receipt },
+  { href: '/tarjeta-credito', label: 'Tarjeta Crédito',        icon: CreditCard },
+  { href: '/reportes',        label: 'Reporte Legalizaciones', icon: BarChart3 },
+  { href: '/administracion',  label: 'Administración',         icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { currentUser } = useStore()
+  const rol = currentUser?.permiso
+  const navItems = ALL_NAV.filter(item => tieneAcceso(rol, item.href))
 
   return (
     <aside style={{ width: 192, minHeight: '100vh', background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>

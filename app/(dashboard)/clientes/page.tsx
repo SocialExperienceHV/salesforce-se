@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Building2, Layers, Plus, Search, MoreHorizontal, ChevronRight, X, Upload } from 'lucide-react'
+import { Building2, Layers, Plus, Search, MoreHorizontal, ChevronRight, X, Upload, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -519,23 +519,27 @@ function EditarClienteModal({ cliente, onClose, onSave }: {
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ClientesPage() {
-  const { clientes, addCliente, updateCliente } = useStore()
+  const { clientes, addCliente, updateCliente, proyectos } = useStore()
   const [search, setSearch] = useState('')
   const [ejecutivo, setEjecutivo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<Cliente | null>(null)
   const [contactosCliente, setContactosCliente] = useState<Cliente | null>(null)
+  const [sortAZ, setSortAZ] = useState(false)
 
-  const filtered = clientes.filter(c => {
-    const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase())
-    const matchEjecutivo = ejecutivo === 'Todos' || c.ejecutivo === ejecutivo
-    const matchEstado = estado === 'Todos' || c.estado === estado
-    return matchSearch && matchEjecutivo && matchEstado
-  })
+  const filtered = clientes
+    .filter(c => {
+      const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase())
+      const matchEjecutivo = ejecutivo === 'Todos' || c.ejecutivo === ejecutivo
+      const matchEstado = estado === 'Todos' || c.estado === estado
+      return matchSearch && matchEjecutivo && matchEstado
+    })
+    .sort((a, b) => sortAZ ? a.nombre.localeCompare(b.nombre, 'es') : 0)
 
   const totalSubclientes = clientes.reduce((sum, c) => sum + c.subclientes.length, 0)
-  const totalProyectos = clientes.reduce((sum, c) => sum + c.proyectos, 0)
+  const totalProyectos = proyectos.length
+  const proyectosPorCliente = (nombre: string) => proyectos.filter(p => p.cliente === nombre).length
 
   return (
     <div className="p-6 flex flex-col gap-5">
@@ -631,7 +635,13 @@ export default function ClientesPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="text-xs font-medium">Cliente</TableHead>
+              <TableHead className="text-xs font-medium">
+                <button onClick={() => setSortAZ(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, color: sortAZ ? '#1A56DB' : '#6B7280', padding: 0 }}>
+                  Cliente
+                  <ChevronsUpDown style={{ width: 13, height: 13 }} />
+                </button>
+              </TableHead>
               <TableHead className="text-xs font-medium">Áreas / Marcas</TableHead>
               <TableHead className="text-xs font-medium">Ejecutivo KAM</TableHead>
               <TableHead className="text-xs font-medium text-center">Proyectos</TableHead>
@@ -665,7 +675,7 @@ export default function ClientesPage() {
                     <span className="text-sm">{c.ejecutivo}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-center text-sm font-medium">{c.proyectos}</TableCell>
+                <TableCell className="text-center text-sm font-medium">{proyectosPorCliente(c.nombre)}</TableCell>
                 <TableCell>
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${c.estado === 'Activo' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
                     {c.estado}

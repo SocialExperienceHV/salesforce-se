@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
+import { RouteGuard } from '@/components/layout/route-guard'
 import { useStore } from '@/lib/store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-y-auto" style={{ background: '#F9FAFB' }}>
-          {children}
+          <RouteGuard>{children}</RouteGuard>
         </main>
       </div>
     </div>
