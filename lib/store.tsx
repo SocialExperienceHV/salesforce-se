@@ -107,6 +107,7 @@ export type HistorialLeg = {
 
 export type Legalizacion = {
   id: string
+  codigo: string   // SE-CB-001/26
   // Encabezado
   fecha: string
   tipoDocumento: string
@@ -128,7 +129,7 @@ export type Legalizacion = {
   // Observaciones
   observaciones: string
   // Estado
-  estado: 'Borrador' | 'En revisión' | 'Devuelta' | 'Aprobada' | 'Cerrada'
+  estado: 'En revisión' | 'Aprobada'
   observacionContabilidad?: string
   // Trazabilidad
   creadoPor: string
@@ -196,11 +197,11 @@ const INIT_PERSONAS_STORE: PersonaStore[] = [
 ]
 
 const INIT_LEGALIZACIONES: Legalizacion[] = [
-  { id: 'lg1', fecha: '2026-05-15', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0138', fechaReembolso: '2026-05-15', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g1', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Traslado equipo materiales', pesos: 850000, usd: 0, tasaCambio: 0, total: 850000 }, { id: 'g2', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Almuerzo equipo de trabajo', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }, { id: 'g3', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 13/05/2026', descripcion: 'Pendones y banners', pesos: 18450000, usd: 0, tasaCambio: 0, total: 18450000 }, { id: 'g4', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Parqueadero vehículo', pesos: 830000, usd: 0, tasaCambio: 0, total: 830000 }], anticipo: 25000000, observaciones: 'Gastos realizados para activación en 15 puntos de venta en Bogotá.', estado: 'En revisión', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-15', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-16', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }], createdAt: '2026-05-15' },
-  { id: 'lg2', fecha: '2026-05-14', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-14', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p1', proyecto: 'Campaña Aniversario Éxito 82 años', centroCosto: '1035', productor: 'Francisco Cárdenas', cliente: 'Grupo Éxito', gastos: [{ id: 'g5', centroCosto: '1035', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Lunch reunión cliente', pesos: 45600000, usd: 0, tasaCambio: 0, total: 45600000 }, { id: 'g6', centroCosto: '1035', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Taxi aeropuerto', pesos: 23150000, usd: 0, tasaCambio: 0, total: 23150000 }], anticipo: 0, observaciones: '', estado: 'Borrador', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-14', usuario: 'Manuel Parra', accion: 'Creada' }], createdAt: '2026-05-14' },
-  { id: 'lg3', fecha: '2026-05-13', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: 'ANT-2026-0121', fechaReembolso: '2026-05-13', responsable: 'Carlos Bustamante', cargo: 'Productor Sr', proyectoId: 'p3', proyecto: 'Campaña Acumulación de Millas', centroCosto: '1038', productor: 'Francisco Cárdenas', cliente: 'Avianca', gastos: [{ id: 'g7', centroCosto: '1038', tipoGasto: 'Material POP', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Impresión pendones aeropuerto', pesos: 2800000, usd: 0, tasaCambio: 0, total: 2800000 }, { id: 'g8', centroCosto: '1038', tipoGasto: 'Transporte', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Flete material activación', pesos: 1200000, usd: 0, tasaCambio: 0, total: 1200000 }, { id: 'g9', centroCosto: '1038', tipoGasto: 'Hospedaje', ciudadFecha: 'Medellín 12/05/2026', descripcion: 'Hotel equipo 1 noche', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }], anticipo: 5000000, observaciones: 'Activación aeropuerto Rionegro.', estado: 'Aprobada', creadoPor: 'Carlos Bustamante', historial: [{ fecha: '2026-05-13', usuario: 'Carlos Bustamante', accion: 'Creada' }, { fecha: '2026-05-14', usuario: 'Carlos Bustamante', accion: 'Enviada a revisión' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Aprobada' }], createdAt: '2026-05-13' },
-  { id: 'lg4', fecha: '2026-05-12', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0115', fechaReembolso: '2026-05-12', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p6', proyecto: 'Activación Mundial Banco Falabella', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g10', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Alquiler furgón materiales', pesos: 5400000, usd: 0, tasaCambio: 0, total: 5400000 }, { id: 'g11', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Producción material BTL', pesos: 18200000, usd: 0, tasaCambio: 0, total: 18200000 }, { id: 'g12', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 11/05/2026', descripcion: 'Parqueadero centro comercial', pesos: 6400000, usd: 0, tasaCambio: 0, total: 6400000 }], anticipo: 30000000, observaciones: '', estado: 'Cerrada', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-12', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-13', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }, { fecha: '2026-05-14', usuario: 'Juan Vargas', accion: 'Aprobada' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Cerrada' }], createdAt: '2026-05-12' },
-  { id: 'lg5', fecha: '2026-05-09', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-09', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ id: 'g13', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Catering lanzamiento', pesos: 1850000, usd: 0, tasaCambio: 0, total: 1850000 }, { id: 'g14', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Taxi reunión cliente', pesos: 450000, usd: 0, tasaCambio: 0, total: 450000 }], anticipo: 3000000, observaciones: 'Gastos menores lanzamiento BTL.', estado: 'Devuelta', observacionContabilidad: 'Falta factura del catering. Adjuntar soporte.', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-09', usuario: 'Manuel Parra', accion: 'Creada' }, { fecha: '2026-05-10', usuario: 'Manuel Parra', accion: 'Enviada a revisión' }, { fecha: '2026-05-11', usuario: 'Juan Vargas', accion: 'Devuelta', observacion: 'Falta factura del catering. Adjuntar soporte.' }], createdAt: '2026-05-09' },
+  { id: 'lg1', codigo: 'SE-CB-001/26', fecha: '2026-05-15', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0138', fechaReembolso: '2026-05-15', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ tipoFactura: 'FE' as const, id: 'g1', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Traslado equipo materiales', pesos: 850000, usd: 0, tasaCambio: 0, total: 850000 }, { tipoFactura: 'FE' as const, id: 'g2', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Almuerzo equipo de trabajo', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }, { tipoFactura: 'FE' as const, id: 'g3', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 13/05/2026', descripcion: 'Pendones y banners', pesos: 18450000, usd: 0, tasaCambio: 0, total: 18450000 }, { tipoFactura: 'FE' as const, id: 'g4', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 12/05/2026', descripcion: 'Parqueadero vehículo', pesos: 830000, usd: 0, tasaCambio: 0, total: 830000 }], anticipo: 25000000, observaciones: 'Gastos realizados para activación en 15 puntos de venta en Bogotá.', estado: 'En revisión', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-15', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-16', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }], createdAt: '2026-05-15' },
+  { id: 'lg2', codigo: 'SE-CB-002/26', fecha: '2026-05-14', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-14', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p1', proyecto: 'Campaña Aniversario Éxito 82 años', centroCosto: '1035', productor: 'Francisco Cárdenas', cliente: 'Grupo Éxito', gastos: [{ tipoFactura: 'FE' as const, id: 'g5', centroCosto: '1035', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Lunch reunión cliente', pesos: 45600000, usd: 0, tasaCambio: 0, total: 45600000 }, { tipoFactura: 'FE' as const, id: 'g6', centroCosto: '1035', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 14/05/2026', descripcion: 'Taxi aeropuerto', pesos: 23150000, usd: 0, tasaCambio: 0, total: 23150000 }], anticipo: 0, observaciones: '', estado: 'En revisión', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-14', usuario: 'Manuel Parra', accion: 'Creada' }], createdAt: '2026-05-14' },
+  { id: 'lg3', codigo: 'SE-CB-003/26', fecha: '2026-05-13', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: 'ANT-2026-0121', fechaReembolso: '2026-05-13', responsable: 'Carlos Bustamante', cargo: 'Productor Sr', proyectoId: 'p3', proyecto: 'Campaña Acumulación de Millas', centroCosto: '1038', productor: 'Francisco Cárdenas', cliente: 'Avianca', gastos: [{ tipoFactura: 'FE' as const, id: 'g7', centroCosto: '1038', tipoGasto: 'Material POP', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Impresión pendones aeropuerto', pesos: 2800000, usd: 0, tasaCambio: 0, total: 2800000 }, { tipoFactura: 'FE' as const, id: 'g8', centroCosto: '1038', tipoGasto: 'Transporte', ciudadFecha: 'Medellín 11/05/2026', descripcion: 'Flete material activación', pesos: 1200000, usd: 0, tasaCambio: 0, total: 1200000 }, { tipoFactura: 'FE' as const, id: 'g9', centroCosto: '1038', tipoGasto: 'Hospedaje', ciudadFecha: 'Medellín 12/05/2026', descripcion: 'Hotel equipo 1 noche', pesos: 320000, usd: 0, tasaCambio: 0, total: 320000 }], anticipo: 5000000, observaciones: 'Activación aeropuerto Rionegro.', estado: 'Aprobada', creadoPor: 'Carlos Bustamante', historial: [{ fecha: '2026-05-13', usuario: 'Carlos Bustamante', accion: 'Creada' }, { fecha: '2026-05-14', usuario: 'Carlos Bustamante', accion: 'Enviada a revisión' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Aprobada' }], createdAt: '2026-05-13' },
+  { id: 'lg4', codigo: 'SE-CB-004/26', fecha: '2026-05-12', tipoDocumento: 'Legalización', tipoLegalizacion: 'Legalización de anticipo', noAnticipo: 'ANT-2026-0115', fechaReembolso: '2026-05-12', responsable: 'Andrés Arellano', cargo: 'Productor Sr', proyectoId: 'p6', proyecto: 'Activación Mundial Banco Falabella', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ tipoFactura: 'FE' as const, id: 'g10', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Alquiler furgón materiales', pesos: 5400000, usd: 0, tasaCambio: 0, total: 5400000 }, { tipoFactura: 'FE' as const, id: 'g11', centroCosto: '1042', tipoGasto: 'Material POP', ciudadFecha: 'Bogotá 10/05/2026', descripcion: 'Producción material BTL', pesos: 18200000, usd: 0, tasaCambio: 0, total: 18200000 }, { tipoFactura: 'FE' as const, id: 'g12', centroCosto: '1042', tipoGasto: 'Parqueadero', ciudadFecha: 'Bogotá 11/05/2026', descripcion: 'Parqueadero centro comercial', pesos: 6400000, usd: 0, tasaCambio: 0, total: 6400000 }], anticipo: 30000000, observaciones: '', estado: 'Aprobada', creadoPor: 'Andrés Arellano', historial: [{ fecha: '2026-05-12', usuario: 'Andrés Arellano', accion: 'Creada' }, { fecha: '2026-05-13', usuario: 'Andrés Arellano', accion: 'Enviada a revisión' }, { fecha: '2026-05-14', usuario: 'Juan Vargas', accion: 'Aprobada' }, { fecha: '2026-05-15', usuario: 'Juan Vargas', accion: 'Cerrada' }], createdAt: '2026-05-12' },
+  { id: 'lg5', codigo: 'SE-CB-005/26', fecha: '2026-05-09', tipoDocumento: 'Legalización', tipoLegalizacion: 'Reembolso', noAnticipo: '', fechaReembolso: '2026-05-09', responsable: 'Manuel Parra', cargo: 'Coordinador', proyectoId: 'p2', proyecto: 'Lanzamiento Cuenta Pyme Digital', centroCosto: '1042', productor: 'Francisco Cárdenas', cliente: 'Banco Falabella', gastos: [{ tipoFactura: 'FE' as const, id: 'g13', centroCosto: '1042', tipoGasto: 'Alimentación', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Catering lanzamiento', pesos: 1850000, usd: 0, tasaCambio: 0, total: 1850000 }, { tipoFactura: 'FE' as const, id: 'g14', centroCosto: '1042', tipoGasto: 'Transporte', ciudadFecha: 'Bogotá 08/05/2026', descripcion: 'Taxi reunión cliente', pesos: 450000, usd: 0, tasaCambio: 0, total: 450000 }], anticipo: 3000000, observaciones: 'Gastos menores lanzamiento BTL.', estado: 'En revisión', observacionContabilidad: 'Falta factura del catering. Adjuntar soporte.', creadoPor: 'Manuel Parra', historial: [{ fecha: '2026-05-09', usuario: 'Manuel Parra', accion: 'Creada' }, { fecha: '2026-05-10', usuario: 'Manuel Parra', accion: 'Enviada a revisión' }, { fecha: '2026-05-11', usuario: 'Juan Vargas', accion: 'Devuelta', observacion: 'Falta factura del catering. Adjuntar soporte.' }], createdAt: '2026-05-09' },
 ]
 
 const INIT_REGISTROS: RegistroTiempo[] = []
@@ -268,7 +269,7 @@ type StoreCtx = {
   updatePlanOverride: (key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) => void
 
   legalizaciones: Legalizacion[]
-  addLegalizacion: (l: Omit<Legalizacion, 'id' | 'createdAt'>) => string
+  addLegalizacion: (l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) => string
   updateLegalizacion: (id: string, changes: Partial<Legalizacion>) => void
 }
 
@@ -293,7 +294,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProspectos(loadLS('cal2_prospectos', INIT_PROSPECTOS))
     setPersonasStore(personas)
     setPlanOverrides(loadLS('cal2_plan_overrides', {}))
-    setLegalizaciones(loadLS('cal2_legalizaciones', INIT_LEGALIZACIONES))
+    const legsRaw: Legalizacion[] = loadLS('cal2_legalizaciones', INIT_LEGALIZACIONES)
+    // Migrar registros sin código consecutivo
+    const legsOrdenadas = [...legsRaw].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    let needsSave = false
+    const yearCounters: Record<string, number> = {}
+    legsOrdenadas.forEach(l => {
+      if (!l.codigo) {
+        const year = new Date(l.createdAt).getFullYear().toString().slice(2)
+        yearCounters[year] = (yearCounters[year] ?? 0) + 1
+        l.codigo = `SE-CB-${String(yearCounters[year]).padStart(3, '0')}/${year}`
+        needsSave = true
+      } else {
+        const m = l.codigo.match(/SE-CB-(\d+)\/(\d+)/)
+        if (m) yearCounters[m[2]] = Math.max(yearCounters[m[2]] ?? 0, parseInt(m[1], 10))
+      }
+    })
+    // Restaurar orden original (más reciente primero)
+    const legsMigradas = legsRaw.map(l => legsOrdenadas.find(o => o.id === l.id) ?? l)
+    if (needsSave) saveLS('cal2_legalizaciones', legsMigradas)
+    setLegalizaciones(legsMigradas)
 
     // Restaurar usuario logueado
     const uid = getLoggedUserId()
@@ -377,9 +397,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPlanOverrides(next); saveLS('cal2_plan_overrides', next)
   }
 
-  function addLegalizacion(l: Omit<Legalizacion, 'id' | 'createdAt'>): string {
+  function addLegalizacion(l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>): string {
     const id = `lg${Date.now()}`
-    const newL: Legalizacion = { ...l, id, createdAt: new Date().toISOString() }
+    const year = new Date().getFullYear().toString().slice(2)
+    // Busca el mayor consecutivo existente para el año en curso
+    const maxSeq = legalizaciones.reduce((max, leg) => {
+      const m = leg.codigo?.match(/SE-CB-(\d+)\/(\d+)/)
+      if (m && m[2] === year) return Math.max(max, parseInt(m[1], 10))
+      return max
+    }, 0)
+    const codigo = `SE-CB-${String(maxSeq + 1).padStart(3, '0')}/${year}`
+    const newL: Legalizacion = { ...l, id, codigo, createdAt: new Date().toISOString() }
     const next = [newL, ...legalizaciones]
     setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
     return id

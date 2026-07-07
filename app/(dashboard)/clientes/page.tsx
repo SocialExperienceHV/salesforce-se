@@ -369,7 +369,7 @@ function ContactosPanel({ cliente, onClose, onSave }: {
               )}
               {ct.personas.map((per, idx) => (
                 <div key={idx} style={{ padding: '10px 16px', borderBottom: idx < ct.personas.length - 1 ? '1px solid #F3F4F6' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', items: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8' }}>{per.nombre.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase()}</span>
                     </div>

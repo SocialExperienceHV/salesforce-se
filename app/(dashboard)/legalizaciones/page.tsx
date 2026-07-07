@@ -15,15 +15,12 @@ const today = () => new Date().toISOString().split('T')[0]
 
 const TIPOS_GASTO = ['Transporte', 'Alimentación', 'Hospedaje', 'Material POP', 'Parqueadero', 'Imprevistos', 'Otros']
 const ESTADOS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  'Borrador':      { bg: '#F3F4F6', color: '#6B7280', label: 'Borrador' },
   'En revisión':   { bg: '#FEF3C7', color: '#92400E', label: 'En revisión' },
-  'Devuelta':      { bg: '#FEE2E2', color: '#991B1B', label: 'Devuelta' },
   'Aprobada':      { bg: '#D1FAE5', color: '#065F46', label: 'Aprobada' },
-  'Cerrada':       { bg: '#E0E7FF', color: '#3730A3', label: 'Cerrada' },
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
-  const s = ESTADOS_BADGE[estado] ?? ESTADOS_BADGE['Borrador']
+  const s = ESTADOS_BADGE[estado] ?? ESTADOS_BADGE['En revisión']
   return (
     <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color }}>
       {s.label}
@@ -170,35 +167,11 @@ function DetallePanel({ leg, onClose, onUpdate }: {
       </div>
 
       {/* Acciones */}
-      {(leg.estado === 'En revisión') && (
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 }}>
-          <button onClick={() => cambiarEstado('Devuelta')}
-            style={{ flex: 1, height: 36, border: '1px solid #FCA5A5', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#DC2626', background: '#FEF2F2', cursor: 'pointer' }}>
-            Devolver
-          </button>
-          <button onClick={() => cambiarEstado('Aprobada')}
-            style={{ flex: 1, height: 36, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#fff', background: '#1A56DB', cursor: 'pointer' }}>
-            Aprobar
-          </button>
-        </div>
-      )}
-      {leg.estado === 'Aprobada' && (
+      {leg.estado === 'En revisión' && (
         <div style={{ padding: '14px 20px', borderTop: '1px solid #E5E7EB' }}>
-          <button onClick={() => cambiarEstado('Cerrada')}
-            style={{ width: '100%', height: 36, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#fff', background: '#3730A3', cursor: 'pointer' }}>
-            Cerrar legalización
-          </button>
-        </div>
-      )}
-      {leg.estado === 'Borrador' && (
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 }}>
-          <button onClick={onClose}
-            style={{ flex: 1, height: 36, border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12, color: '#374151', background: '#fff', cursor: 'pointer' }}>
-            Cerrar
-          </button>
-          <button onClick={() => cambiarEstado('En revisión')}
-            style={{ flex: 1, height: 36, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#fff', background: '#1A56DB', cursor: 'pointer' }}>
-            Enviar a revisión
+          <button onClick={() => cambiarEstado('Aprobada')}
+            style={{ width: '100%', height: 36, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#fff', background: '#059669', cursor: 'pointer' }}>
+            Aprobar
           </button>
         </div>
       )}
@@ -209,7 +182,7 @@ function DetallePanel({ leg, onClose, onUpdate }: {
 // ─── Formulario nueva / editar legalización ──────────────────────────────────────
 function FormularioLegalizacion({ initial, onSave, onCancel }: {
   initial?: Legalizacion
-  onSave: (data: Omit<Legalizacion, 'id' | 'createdAt'>) => void
+  onSave: (data: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) => void
   onCancel: () => void
 }) {
   const { proyectos, personasStore, currentUser } = useStore()
@@ -291,10 +264,6 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
       historial: initial ? historial : [{ fecha: today(), usuario: CURRENT_USER.nombre, accion: 'Creada' }],
       observacionContabilidad: initial?.observacionContabilidad,
     })
-  }
-
-  function handleImprimir() {
-    window.print()
   }
 
   return (
@@ -596,12 +565,13 @@ export default function LegalizacionesPage() {
   }, [legalizaciones, filtroEstado, filtroTipo, filtroResponsable, filtroMes, busqueda])
 
   const totalLeg     = legalizaciones.reduce((s, l) => s + totalLegalizacion(l), 0)
-  const totalAnticip = legalizaciones.filter(l => l.tipoLegalizacion === 'Legalización de anticipo').reduce((s, l) => s + totalLegalizacion(l), 0)
-  const totalReemb   = legalizaciones.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalAnticip   = legalizaciones.filter(l => l.tipoLegalizacion === 'Legalización de anticipo').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalReemb     = legalizaciones.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const totalCuentaCob = legalizaciones.reduce((s, l) => s + l.gastos.filter(g => g.tipoFactura === 'Cuenta de cobro').reduce((gs, g) => gs + g.total, 0), 0)
   const pendientes   = legalizaciones.filter(l => l.estado === 'En revisión').length
   const aprobadas    = legalizaciones.filter(l => l.estado === 'Aprobada').length
 
-  function handleSaveForm(data: Omit<Legalizacion, 'id' | 'createdAt'>) {
+  function handleSaveForm(data: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) {
     if (editando) {
       updateLegalizacion(editando.id, data)
     } else {
@@ -649,11 +619,10 @@ export default function LegalizacionesPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, marginBottom: 24 }}>
           {[
             { label: 'Total legalizado', value: fmt(totalLeg), icon: '📋', sub: 'Este periodo', trend: '+12,4%' },
-            { label: 'Anticipos', value: fmt(totalAnticip), icon: '💳', sub: 'Este periodo', trend: '+8,7%' },
-            { label: 'Cuentas de cobro', value: fmt(0), icon: '📄', sub: 'Este periodo', trend: '+15,2%' },
-            { label: 'Tarjeta de crédito', value: fmt(0), icon: '💰', sub: 'Este periodo', trend: '+9,1%' },
+            { label: 'Legalización Anticipos', value: fmt(totalAnticip), icon: '💳', sub: 'Este periodo', trend: '+8,7%' },
+            { label: 'Reembolso', value: fmt(totalReemb), icon: '💰', sub: 'Este periodo', trend: '+9,1%' },
+            { label: 'Cuentas de cobro', value: fmt(totalCuentaCob), icon: '📄', sub: 'Este periodo', trend: '+15,2%' },
             { label: 'Pendientes de revisión', value: `${pendientes} legalizaciones`, icon: '⏰', sub: null, trend: null },
-            { label: 'Aprobadas', value: `${aprobadas} legalizaciones`, icon: '✅', sub: null, trend: null },
           ].map(k => (
             <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '16px' }}>
               <div style={{ fontSize: 18, marginBottom: 8 }}>{k.icon}</div>
@@ -680,7 +649,8 @@ export default function LegalizacionesPage() {
             <span style={{ fontSize: 12, color: '#6B7280' }}>Estado:</span>
             <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={sel}>
               <option>Todos</option>
-              {Object.keys(ESTADOS_BADGE).map(e => <option key={e}>{e}</option>)}
+              <option>En revisión</option>
+              <option>Aprobada</option>
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -714,14 +684,14 @@ export default function LegalizacionesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                {['Fecha', 'Responsable', 'Proyecto', 'Centro de costo', 'Tipo', 'Anticipo', 'Total legalizado', 'Saldo', 'Estado', 'Soportes', 'Acción'].map(h => (
+                {['Código', 'Fecha', 'Responsable', 'Proyecto', 'Centro de costo', 'Tipo', 'Anticipo', 'Total legalizado', 'Saldo', 'Estado', 'Soportes', 'Acción'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {legsFiltradas.length === 0 && (
-                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay legalizaciones que coincidan con los filtros.</td></tr>
+                <tr><td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay legalizaciones que coincidan con los filtros.</td></tr>
               )}
               {legsFiltradas.map(l => {
                 const tot = totalLegalizacion(l)
@@ -733,6 +703,11 @@ export default function LegalizacionesPage() {
                     style={{ borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: activa ? '#EFF6FF' : 'transparent', transition: 'background 0.1s' }}
                     onMouseEnter={e => { if (!activa) (e.currentTarget as HTMLElement).style.background = '#FAFAFA' }}
                     onMouseLeave={e => { if (!activa) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#1D4ED8', background: '#EFF6FF', padding: '2px 7px', borderRadius: 5, border: '1px solid #BFDBFE' }}>
+                        {l.codigo ?? '—'}
+                      </span>
+                    </td>
                     <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>{l.fecha}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -802,6 +777,120 @@ export default function LegalizacionesPage() {
 }
 
 // ─── Vista de impresión / PDF ────────────────────────────────────────────────────
+function buildPrintHTML(leg: Legalizacion): string {
+  const total = totalLegalizacion(leg)
+  const MIN_ROWS = 18
+  const emptyRows = Math.max(0, MIN_ROWS - leg.gastos.length)
+  const docNum = leg.codigo ?? `SE-CB-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
+  const fmtCOP = (n: number) => '$ ' + n.toLocaleString('es-CO')
+  const gastoRows = leg.gastos.map(g => `
+    <tr>
+      <td class="cell tc">${g.centroCosto}</td>
+      <td class="cell">${g.tipoGasto}</td>
+      <td class="cell tc">${g.ciudadFecha}</td>
+      <td class="cell">${(g.descripcion||'').toUpperCase()}</td>
+      <td class="cell tr">${g.pesos > 0 ? fmtCOP(g.pesos) : ''}</td>
+      <td class="cell tr">${g.total > 0 ? fmtCOP(g.total) : ''}</td>
+    </tr>`).join('')
+  const emptyRowsHTML = Array.from({ length: emptyRows }).map(() => `
+    <tr>
+      <td class="cell">&nbsp;</td><td class="cell"></td><td class="cell"></td>
+      <td class="cell"></td><td class="cell"></td>
+      <td class="cell tr" style="color:#888">$ -</td>
+    </tr>`).join('')
+  const initials = leg.creadoPor.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,3)
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${docNum} – ${leg.responsable}</title>
+  <style>
+    @page { size: A4 landscape; margin: 14mm 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; margin: 0; padding: 0; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .logo-circle { width: 34px; height: 34px; border-radius: 50%; background: #1A56DB; display: inline-flex; align-items: center; justify-content: center; }
+    .logo-circle span { color: #fff; font-weight: 900; font-size: 12pt; }
+    .logo-info { display: inline-block; margin-left: 6px; }
+    .logo-name { font-size: 12pt; font-weight: 800; }
+    .logo-sub { font-size: 8pt; color: #6B7280; }
+    .docnum { font-size: 10pt; font-weight: 700; letter-spacing: 0.05em; }
+    table { border-collapse: collapse; }
+    .fields { margin-bottom: 8px; font-size: 9pt; }
+    .fields td { padding: 1px 12px 1px 0; }
+    .fields td:first-child { font-weight: 700; white-space: nowrap; }
+    .cell { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; }
+    .hcell { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; font-weight: 700; text-align: center; background: #D9D9D9; }
+    .tc { text-align: center; }
+    .tr { text-align: right; }
+    .gastos-table { width: 100%; margin-bottom: 0; }
+    .footer-table { width: 100%; }
+    .total-cell { background: #D9D9D9; font-weight: 800; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:center">
+      <div class="logo-circle"><span>SE</span></div>
+      <div class="logo-info">
+        <div class="logo-name">Social Experience</div>
+        <div class="logo-sub">@Socialatam</div>
+      </div>
+    </div>
+    <div class="docnum">${docNum}</div>
+  </div>
+
+  <table class="fields">
+    <tr><td>Fecha:</td><td>${leg.fecha}</td></tr>
+    <tr><td>Tipo Documento:</td><td>${leg.tipoDocumento || 'LEGALIZACION'}</td></tr>
+    <tr><td>Tipo Legalización:</td><td>${leg.tipoLegalizacion.toUpperCase()}</td></tr>
+    <tr><td>Responsable:</td><td>${leg.responsable.toUpperCase()}</td></tr>
+    <tr><td>NIT:</td><td>901.204.288 - 9</td></tr>
+  </table>
+
+  <table style="width:100%;margin-bottom:6px">
+    <tr>
+      <td class="cell" style="width:120px;font-weight:700">Nombre Contratista:</td>
+      <td class="cell" style="width:200px">${leg.responsable.toUpperCase()}</td>
+      <td class="cell" style="width:200px">${leg.observaciones || 'Reporte ' + leg.tipoLegalizacion}</td>
+      <td class="cell">Plantilla Legalizaciones</td>
+    </tr>
+    <tr>
+      <td class="cell" style="font-weight:700">Cedula:</td>
+      <td class="cell"></td><td class="cell"></td><td class="cell"></td>
+    </tr>
+  </table>
+
+  <table class="gastos-table">
+    <thead>
+      <tr>
+        <th class="hcell" style="width:65px">Centro Costos</th>
+        <th class="hcell" style="width:85px">Tipo de Gasto</th>
+        <th class="hcell" style="width:75px">Fecha</th>
+        <th class="hcell">Descripcion</th>
+        <th class="hcell" style="width:80px">Pesos</th>
+        <th class="hcell" style="width:80px">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${gastoRows}
+      ${emptyRowsHTML}
+    </tbody>
+  </table>
+
+  <table class="footer-table">
+    <tr>
+      <td class="cell" style="width:150px;font-weight:700">Elaborado Por: <span style="font-weight:400">${initials}</span></td>
+      <td class="cell" style="width:160px;font-weight:700">Autorizado Por: <span style="font-weight:400">FAA</span></td>
+      <td class="cell;font-weight:700">Gestionado Por: <span style="font-weight:400">Social Experience SAS</span></td>
+      <td class="cell total-cell" style="width:80px">${fmtCOP(total)}</td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void }) {
   const total = totalLegalizacion(leg)
 
@@ -814,7 +903,7 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
   const hCell: React.CSSProperties = { ...cell, background: '#D9D9D9', fontWeight: 700, fontSize: 9, textAlign: 'center' }
 
   // Número de documento tipo SE-CB-001/26
-  const docNum = `SE-CB-${leg.id.replace('lg','').slice(-3).padStart(3,'0')}/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
+  const docNum = leg.codigo ?? `SE-CB-???/${new Date(leg.fecha).getFullYear().toString().slice(2)}`
 
   return (
     <>
@@ -839,7 +928,14 @@ function PrintView({ leg, onClose }: { leg: Legalizacion; onClose: () => void })
             <button onClick={onClose} style={{ height: 34, padding: '0 16px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', background: '#fff', cursor: 'pointer' }}>
               Cerrar
             </button>
-            <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: '#fff', background: '#1A56DB', cursor: 'pointer' }}>
+            <button onClick={() => {
+              const w = window.open('', '_blank', 'width=1100,height=700')
+              if (!w) return
+              w.document.write(buildPrintHTML(leg))
+              w.document.close()
+              w.focus()
+              setTimeout(() => w.print(), 400)
+            }} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: '#fff', background: '#1A56DB', cursor: 'pointer' }}>
               <Printer style={{ width: 14, height: 14 }} /> Imprimir / Guardar PDF
             </button>
           </div>

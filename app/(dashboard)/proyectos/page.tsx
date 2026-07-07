@@ -209,7 +209,7 @@ export default function ProyectosPage() {
       else if (sortCol === 'fechaEjec')   { va = a.fechaEntrega;      vb = b.fechaEntrega }
       else if (sortCol === 'monto')       { va = a.monto;             vb = b.monto }
       else if (sortCol === 'estado')      { va = a.estadoComercial;   vb = b.estadoComercial }
-      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''), 'es')
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [filtered, sortCol, sortDir])

@@ -185,7 +185,7 @@ function Tarjeta({ nombre, estado, active, onClick }: { nombre: string; estado: 
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function PlanTrabajoPage() {
-  const { proyectos, personasStore, planOverrides, updatePlanOverride, currentUser } = useStore()
+  const { proyectos, personasStore, planOverrides, updatePlanOverride, updateProyecto, currentUser } = useStore()
 
   const [vista, setVista] = useState<'equipo' | 'misemana'>('equipo')
   const [filtroAreas, setFiltroAreas] = useState<string[]>([])
@@ -329,13 +329,22 @@ export default function PlanTrabajoPage() {
 
   function handleNuevaLabor() {
     if (!nuevaProyecto || !nuevaPersona || !nuevaDia) return
+    const proyecto = proyectos.find(p => p.id === nuevaProyecto)
+    if (!proyecto) return
+
+    // Asegurar que la persona esté en la lista del proyecto para que aparezca en la matriz
+    const yaEsta = [...(proyecto.personasProduccion ?? []), ...(proyecto.personasCreatividad ?? [])].includes(nuevaPersona)
+    if (!yaEsta) {
+      updateProyecto(nuevaProyecto, { personasProduccion: [...(proyecto.personasProduccion ?? []), nuevaPersona] })
+    }
+
+    // Asignar el día via override
     const key = `${nuevaPersona}__${nuevaProyecto}`
     const override = planOverrides[key]
     const diasActuales = (override?.dias ?? []) as DiaPlan[]
-    if (!diasActuales.includes(nuevaDia)) {
-      const merged = [...diasActuales, nuevaDia].sort((a, b) => (DIA_ORDER[a] ?? 5) - (DIA_ORDER[b] ?? 5))
-      updatePlanOverride(key, { dias: merged, estado: override?.estado ?? 'En proceso' })
-    }
+    const merged = [...new Set([...diasActuales, nuevaDia])].sort((a, b) => (DIA_ORDER[a] ?? 5) - (DIA_ORDER[b] ?? 5))
+    updatePlanOverride(key, { dias: merged, estado: override?.estado ?? 'En proceso' })
+
     setNuevaOk(true)
     setTimeout(() => { setNuevaOk(false); setNuevaProyecto(''); setNuevaPersona(''); setNuevaDia('Lunes'); setNuevaLaborOpen(false) }, 1500)
   }

@@ -336,7 +336,7 @@ export default function SeguimientoPage() {
       else if (sortCol === 'fechaEjec') { va = a.fechaEntrega;      vb = b.fechaEntrega }
       else if (sortCol === 'estado')    { va = a.estadoComercial;   vb = b.estadoComercial }
       else if (sortCol === 'monto')     { va = a.monto;             vb = b.monto }
-      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''), 'es')
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [filtered, sortCol, sortDir])
