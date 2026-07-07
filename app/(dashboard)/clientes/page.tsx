@@ -12,9 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useStore } from '@/lib/store'
 import type { Cliente, ContactoCliente } from '@/lib/store'
 
-const EJECUTIVO_OPTIONS = ['Hans Vargas', 'María Torres', 'Laura Medina', 'David Ruiz', 'Juan Camilo', 'Felipe Aguilón', 'Iván Londoño']
 const COLORES = ['#16a34a','#e53935','#2563eb','#f97316','#7c3aed','#dc2626','#0284c7','#ca8a04','#c62828','#059669','#d97706','#6366f1']
-const ejecutivosFiltro = ['Todos', ...EJECUTIVO_OPTIONS]
 const estadosFiltro = ['Todos', 'Activo', 'Inactivo']
 
 function getIniciales(nombre: string) {
@@ -620,7 +618,7 @@ export default function ClientesPage() {
             <span className="text-muted-foreground text-xs mr-1">Ejecutivo:</span>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>{ejecutivosFiltro.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+          <SelectContent>{['Todos', ...kams].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={estado} onValueChange={(v) => v && setEstado(v)}>
           <SelectTrigger className="w-36 h-9 text-sm">
