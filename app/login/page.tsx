@@ -42,9 +42,9 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, background: '#1A56DB', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>C</span>
+              <span style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>S</span>
             </div>
-            <span style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Calendar <span style={{ color: '#1A56DB' }}>2.0</span></span>
+            <span style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Salesforce <span style={{ color: '#1A56DB' }}>SE</span></span>
           </div>
           <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>Ingresa con tu correo y clave</p>
         </div>
