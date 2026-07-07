@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { Building2, Layers, Plus, Search, MoreHorizontal, ChevronRight, X, Upload, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,9 +81,10 @@ function LogoUploader({ logo, onChange }: { logo: string; onChange: (b64: string
 // ─── Modal nuevo cliente ────────────────────────────────────────────────────────
 type AreaEntry = { nombre: string; personas: { nombre: string; email: string; telefono: string }[] }
 
-function NuevoClienteModal({ onClose, onSave }: {
+function NuevoClienteModal({ onClose, onSave, kams }: {
   onClose: () => void
   onSave: (data: Omit<Cliente, 'id' | 'createdAt'>) => void
+  kams: string[]
 }) {
   const [nombre, setNombre] = useState('')
   const [ejecutivo, setEjecutivo] = useState('')
@@ -167,10 +168,10 @@ function NuevoClienteModal({ onClose, onSave }: {
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Ejecutivo KAM responsable</Label>
+            <Label className="text-xs">KAM responsable</Label>
             <Select value={ejecutivo} onValueChange={v => v && setEjecutivo(v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar ejecutivo..." /></SelectTrigger>
-              <SelectContent>{EJECUTIVO_OPTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar KAM..." /></SelectTrigger>
+              <SelectContent>{kams.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
@@ -414,10 +415,11 @@ function ContactosPanel({ cliente, onClose, onSave }: {
 }
 
 // ─── Modal editar cliente ───────────────────────────────────────────────────────
-function EditarClienteModal({ cliente, onClose, onSave }: {
+function EditarClienteModal({ cliente, onClose, onSave, kams }: {
   cliente: Cliente
   onClose: () => void
   onSave: (changes: Partial<Cliente>) => void
+  kams: string[]
 }) {
   const [nombre, setNombre] = useState(cliente.nombre)
   const [ejecutivo, setEjecutivo] = useState(cliente.ejecutivo)
@@ -476,10 +478,10 @@ function EditarClienteModal({ cliente, onClose, onSave }: {
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Ejecutivo KAM responsable</Label>
+            <Label className="text-xs">KAM responsable</Label>
             <Select value={ejecutivo} onValueChange={v => v && setEjecutivo(v)}>
               <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>{EJECUTIVO_OPTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+              <SelectContent>{kams.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
@@ -519,7 +521,8 @@ function EditarClienteModal({ cliente, onClose, onSave }: {
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ClientesPage() {
-  const { clientes, addCliente, updateCliente, proyectos } = useStore()
+  const { clientes, addCliente, updateCliente, proyectos, personasStore } = useStore()
+  const kams = useMemo(() => personasStore.filter(p => p.permiso === 'KAM' || p.cargo === 'KAM').map(p => p.nombre), [personasStore])
   const [search, setSearch] = useState('')
   const [ejecutivo, setEjecutivo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')
@@ -547,6 +550,7 @@ export default function ClientesPage() {
         <NuevoClienteModal
           onClose={() => setShowModal(false)}
           onSave={data => { addCliente(data); setShowModal(false) }}
+          kams={kams}
         />
       )}
       {editando && (
@@ -554,6 +558,7 @@ export default function ClientesPage() {
           cliente={editando}
           onClose={() => setEditando(null)}
           onSave={changes => { updateCliente(editando.id, changes); setEditando(null) }}
+          kams={kams}
         />
       )}
       {contactosCliente && (

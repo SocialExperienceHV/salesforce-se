@@ -202,7 +202,23 @@ function AccionCell({ value, onChange, placeholder }: { value?: string; onChange
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function TraficoPage() {
-  const { proyectos, clientes: clientesStore, updateProyecto, personasStore } = useStore()
+  const { proyectos, clientes: clientesStore, updateProyecto, personasStore, addNotificacion } = useStore()
+
+  function handleAsignarPersonas(proyectoId: string, campo: 'personasProduccion' | 'personasCreatividad', nuevas: string[]) {
+    const p = proyectos.find(x => x.id === proyectoId)
+    const anteriores = new Set(p?.[campo] ?? [])
+    const agregadas = nuevas.filter(n => !anteriores.has(n))
+    agregadas.forEach(nombre => {
+      addNotificacion({
+        tipo: 'asignacion',
+        titulo: 'Te asignaron a un proyecto',
+        mensaje: `Fuiste asignado al proyecto "${p?.nombre ?? ''}"${p?.cliente ? ` (${p.cliente})` : ''}.`,
+        para: nombre,
+        href: '/trafico',
+      })
+    })
+    updateProyecto(proyectoId, { [campo]: nuevas })
+  }
 
   const [diaActivo, setDiaActivo] = useState('Todos')
   const [search, setSearch] = useState('')
@@ -415,7 +431,7 @@ export default function TraficoPage() {
                       <PersonaMultiSelect
                         personas={personasProduccion}
                         selected={p.personasProduccion ?? []}
-                        onChange={v => updateProyecto(p.id, { personasProduccion: v })}
+                        onChange={v => handleAsignarPersonas(p.id, 'personasProduccion', v)}
                         placeholder="Asignar..."
                       />
                       {(p.personasProduccion?.length ?? 0) > 0 && (
@@ -434,7 +450,7 @@ export default function TraficoPage() {
                       <PersonaMultiSelect
                         personas={personasCreatividad}
                         selected={p.personasCreatividad ?? []}
-                        onChange={v => updateProyecto(p.id, { personasCreatividad: v })}
+                        onChange={v => handleAsignarPersonas(p.id, 'personasCreatividad', v)}
                         placeholder="Asignar..."
                       />
                       {(p.personasCreatividad?.length ?? 0) > 0 && (

@@ -637,6 +637,34 @@ export default function LegalizacionesPage() {
   const pendientes   = legsFiltradas.filter(l => l.estado === 'En revisión').length
   const aprobadas    = legsFiltradas.filter(l => l.estado === 'Aprobada').length
 
+  // Periodo anterior: mes anterior al filtro activo (o mes anterior al actual si no hay filtro)
+  const legsPeriodoAnterior = useMemo(() => {
+    const hoy = new Date()
+    const mesActual = filtroMes !== 'Todos' ? parseInt(filtroMes) : hoy.getMonth()
+    const mesAnterior = mesActual === 0 ? 11 : mesActual - 1
+    return legalizaciones.filter(l => {
+      if (filtroEstado !== 'Todos' && l.estado !== filtroEstado) return false
+      if (filtroTipo !== 'Todos' && l.tipoLegalizacion !== filtroTipo) return false
+      if (filtroResponsable !== 'Todos' && l.responsable !== filtroResponsable) return false
+      const d = new Date(l.fecha)
+      return !isNaN(d.getTime()) && d.getMonth() === mesAnterior
+    })
+  }, [legalizaciones, filtroEstado, filtroTipo, filtroResponsable, filtroMes])
+
+  const prevLeg      = legsPeriodoAnterior.reduce((s, l) => s + totalLegalizacion(l), 0)
+  const prevAnticip  = legsPeriodoAnterior.filter(l => l.tipoLegalizacion === 'Legalización de anticipo').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const prevReemb    = legsPeriodoAnterior.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
+  const prevCuentaCob = legsPeriodoAnterior.reduce((s, l) => s + l.gastos.filter(g => g.tipoFactura === 'Cuenta de cobro').reduce((gs, g) => gs + g.total, 0), 0)
+
+  function tendencia(actual: number, anterior: number): { label: string; color: string } | null {
+    if (anterior === 0 && actual === 0) return null
+    if (anterior === 0) return { label: 'Nuevo', color: '#6B7280' }
+    const pct = ((actual - anterior) / anterior) * 100
+    const sign = pct >= 0 ? '↑' : '↓'
+    const color = pct >= 0 ? '#059669' : '#DC2626'
+    return { label: `${sign} ${Math.abs(pct).toFixed(1)}%`, color }
+  }
+
   function handleSaveForm(data: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) {
     if (editando) {
       updateLegalizacion(editando.id, data)
@@ -684,20 +712,20 @@ export default function LegalizacionesPage() {
         {/* KPI Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, marginBottom: 24 }}>
           {[
-            { label: 'Total legalizado', value: fmt(totalLeg), icon: '📋', sub: 'Este periodo', trend: '+12,4%' },
-            { label: 'Legalización Anticipos', value: fmt(totalAnticip), icon: '💳', sub: 'Este periodo', trend: '+8,7%' },
-            { label: 'Reembolso', value: fmt(totalReemb), icon: '💰', sub: 'Este periodo', trend: '+9,1%' },
-            { label: 'Cuentas de cobro', value: fmt(totalCuentaCob), icon: '📄', sub: 'Este periodo', trend: '+15,2%' },
-            { label: 'Pendientes de revisión', value: `${pendientes} legalizaciones`, icon: '⏰', sub: null, trend: null },
+            { label: 'Total legalizado',      value: fmt(totalLeg),      icon: '📋', t: tendencia(totalLeg, prevLeg) },
+            { label: 'Legalización Anticipos', value: fmt(totalAnticip),  icon: '💳', t: tendencia(totalAnticip, prevAnticip) },
+            { label: 'Reembolso',             value: fmt(totalReemb),    icon: '💰', t: tendencia(totalReemb, prevReemb) },
+            { label: 'Cuentas de cobro',      value: fmt(totalCuentaCob), icon: '📄', t: tendencia(totalCuentaCob, prevCuentaCob) },
+            { label: 'Pendientes de revisión', value: `${pendientes} legalizaciones`, icon: '⏰', t: null },
           ].map(k => (
             <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: '16px' }}>
               <div style={{ fontSize: 18, marginBottom: 8 }}>{k.icon}</div>
               <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 4 }}>{k.label}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{k.value}</div>
-              {k.sub && (
+              {k.t && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <span style={{ fontSize: 10, color: '#9CA3AF' }}>{k.sub}</span>
-                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 600 }}>↑ {k.trend}</span>
+                  <span style={{ fontSize: 10, color: '#9CA3AF' }}>vs mes anterior</span>
+                  <span style={{ fontSize: 10, color: k.t.color, fontWeight: 600 }}>{k.t.label}</span>
                 </div>
               )}
             </div>

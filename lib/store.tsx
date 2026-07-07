@@ -138,6 +138,44 @@ export type Legalizacion = {
   createdAt: string
 }
 
+export type TarjetaCorporativa = {
+  id: string
+  ultimos4: string
+  nombre?: string
+  activa: boolean
+  createdAt: string
+}
+
+export type ItemTC = {
+  id: string
+  centroCosto: string
+  monto: number
+  responsable: string
+  status: 'Entregado' | 'Pendiente'
+  descripcion?: string
+}
+
+export type DocumentoTC = {
+  id: string
+  tarjetaId: string
+  ultimos4: string
+  fecha: string
+  items: ItemTC[]
+  finalizado: boolean
+  createdAt: string
+}
+
+export type Notificacion = {
+  id: string
+  tipo: 'proyecto_nuevo' | 'proyecto_vendido' | 'asignacion'
+  titulo: string
+  mensaje: string
+  para: string | 'todos'
+  leida: boolean
+  href?: string
+  createdAt: string
+}
+
 export type Prospecto = {
   id: string
   empresa: string
@@ -274,6 +312,20 @@ type StoreCtx = {
   legalizaciones: Legalizacion[]
   addLegalizacion: (l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) => string
   updateLegalizacion: (id: string, changes: Partial<Legalizacion>) => void
+
+  tarjetasCorp: TarjetaCorporativa[]
+  addTarjetaCorp: (t: Omit<TarjetaCorporativa, 'id' | 'createdAt'>) => void
+  updateTarjetaCorp: (id: string, changes: Partial<TarjetaCorporativa>) => void
+
+  documentosTC: DocumentoTC[]
+  addDocumentoTC: (d: Omit<DocumentoTC, 'id' | 'createdAt'>) => string
+  updateDocumentoTC: (id: string, changes: Partial<DocumentoTC>) => void
+  deleteDocumentoTC: (id: string) => void
+
+  notificaciones: Notificacion[]
+  addNotificacion: (n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) => void
+  marcarLeida: (id: string) => void
+  marcarTodasLeidas: () => void
 }
 
 const Ctx = createContext<StoreCtx | null>(null)
@@ -286,6 +338,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [personasStore, setPersonasStore] = useState<PersonaStore[]>(INIT_PERSONAS_STORE)
   const [planOverrides, setPlanOverrides] = useState<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>>({})
   const [legalizaciones, setLegalizaciones] = useState<Legalizacion[]>(INIT_LEGALIZACIONES)
+  const [tarjetasCorp, setTarjetasCorp] = useState<TarjetaCorporativa[]>([])
+  const [documentosTC, setDocumentosTC] = useState<DocumentoTC[]>([])
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [currentUser, setCurrentUserState] = useState<PersonaStore | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -297,6 +352,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProspectos(loadLS('cal2_prospectos', INIT_PROSPECTOS))
     setPersonasStore(personas)
     setPlanOverrides(loadLS('cal2_plan_overrides', {}))
+    setTarjetasCorp(loadLS('cal2_tarjetas_corp', []))
+    setDocumentosTC(loadLS('cal2_documentos_tc', []))
+    setNotificaciones(loadLS('cal2_notificaciones', []))
     const legsRaw: Legalizacion[] = loadLS('cal2_legalizaciones', INIT_LEGALIZACIONES)
     // Migrar registros sin código consecutivo
     const legsOrdenadas = [...legsRaw].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -336,9 +394,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const newP: Proyecto = { ...p, id: `p${Date.now()}`, createdAt: new Date().toISOString() }
     const next = [newP, ...proyectos]
     setProyectos(next); saveLS('cal2_proyectos', next)
+    addNotificacionInternal({
+      tipo: 'proyecto_nuevo',
+      titulo: 'Nuevo proyecto creado',
+      mensaje: `Se creó el proyecto "${p.nombre}" para ${p.cliente}.`,
+      para: 'todos',
+      href: '/proyectos',
+    })
   }
 
   function updateProyecto(id: string, changes: Partial<Proyecto>) {
+    const old = proyectos.find(p => p.id === id)
+    if (changes.estadoComercial === 'Vendido' && old?.estadoComercial !== 'Vendido') {
+      addNotificacionInternal({
+        tipo: 'proyecto_vendido',
+        titulo: '¡Proyecto vendido!',
+        mensaje: `"${old?.nombre ?? ''}" cambió a Vendido.`,
+        para: 'todos',
+        href: '/proyectos',
+      })
+    }
     const next = proyectos.map(p => p.id === id ? { ...p, ...changes } : p)
     setProyectos(next); saveLS('cal2_proyectos', next)
   }
@@ -421,6 +496,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
   }
 
+  function addTarjetaCorp(t: Omit<TarjetaCorporativa, 'id' | 'createdAt'>) {
+    const newT: TarjetaCorporativa = { ...t, id: `tc${Date.now()}`, createdAt: new Date().toISOString() }
+    const next = [...tarjetasCorp, newT]
+    setTarjetasCorp(next); saveLS('cal2_tarjetas_corp', next)
+  }
+
+  function updateTarjetaCorp(id: string, changes: Partial<TarjetaCorporativa>) {
+    const next = tarjetasCorp.map(t => t.id === id ? { ...t, ...changes } : t)
+    setTarjetasCorp(next); saveLS('cal2_tarjetas_corp', next)
+  }
+
+  function addDocumentoTC(d: Omit<DocumentoTC, 'id' | 'createdAt'>): string {
+    const id = `dtc${Date.now()}`
+    const newD: DocumentoTC = { ...d, id, createdAt: new Date().toISOString() }
+    const next = [newD, ...documentosTC]
+    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+    return id
+  }
+
+  function updateDocumentoTC(id: string, changes: Partial<DocumentoTC>) {
+    const next = documentosTC.map(d => d.id === id ? { ...d, ...changes } : d)
+    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+  }
+
+  function deleteDocumentoTC(id: string) {
+    const next = documentosTC.filter(d => d.id !== id)
+    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+  }
+
+  function addNotificacionInternal(n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) {
+    const newN: Notificacion = { ...n, id: `notif${Date.now()}`, leida: false, createdAt: new Date().toISOString() }
+    setNotificaciones(prev => {
+      const next = [newN, ...prev]
+      saveLS('cal2_notificaciones', next)
+      return next
+    })
+  }
+
+  function addNotificacion(n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) {
+    addNotificacionInternal(n)
+  }
+
+  function marcarLeida(id: string) {
+    setNotificaciones(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, leida: true } : n)
+      saveLS('cal2_notificaciones', next)
+      return next
+    })
+  }
+
+  function marcarTodasLeidas() {
+    setNotificaciones(prev => {
+      const next = prev.map(n => ({ ...n, leida: true }))
+      saveLS('cal2_notificaciones', next)
+      return next
+    })
+  }
+
   return (
     <Ctx.Provider value={{
       proyectos, addProyecto, updateProyecto,
@@ -432,6 +565,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ready,
       planOverrides, updatePlanOverride,
       legalizaciones, addLegalizacion, updateLegalizacion,
+      tarjetasCorp, addTarjetaCorp, updateTarjetaCorp,
+      documentosTC, addDocumentoTC, updateDocumentoTC, deleteDocumentoTC,
+      notificaciones, addNotificacion, marcarLeida, marcarTodasLeidas,
     }}>
       {children}
     </Ctx.Provider>

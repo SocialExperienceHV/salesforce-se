@@ -23,7 +23,7 @@ const sel: React.CSSProperties = {
 }
 
 export default function ReporteLegalizaciones() {
-  const { proyectos, legalizaciones } = useStore()
+  const { proyectos, legalizaciones, documentosTC } = useStore()
 
   const [filtroCliente, setFiltroCliente] = useState('Todos')
   const [filtroProductor, setFiltroProductor] = useState('Todos')
@@ -86,6 +86,10 @@ export default function ReporteLegalizaciones() {
 
       const montoReal = p.montoRealVendido ?? p.monto
 
+      // TC: sumar ítems del módulo Tarjeta Crédito con ese CC
+      const tcItems = documentosTC.flatMap(d => d.items.filter(i => i.centroCosto === p.centroCosto))
+      const tarjetaCredito = tcItems.reduce((s, i) => s + i.monto, 0)
+
       return {
         id: p.id,
         centroCosto: p.centroCosto!,
@@ -96,9 +100,11 @@ export default function ReporteLegalizaciones() {
         anticiposPct: montoReal > 0 ? (anticipos / montoReal) * 100 : 0,
         cuentasCobro,
         cuentasCobroPct: montoReal > 0 ? (cuentasCobro / montoReal) * 100 : 0,
+        tarjetaCredito,
+        tcPct: montoReal > 0 ? (tarjetaCredito / montoReal) * 100 : 0,
       }
-    }).filter(f => f.anticipos > 0 || f.cuentasCobro > 0)
-  }, [proyectos, legalizaciones, filtroCliente, filtroProductor, filtroMes])
+    }).filter(f => f.anticipos > 0 || f.cuentasCobro > 0 || f.tarjetaCredito > 0)
+  }, [proyectos, legalizaciones, documentosTC, filtroCliente, filtroProductor, filtroMes])
 
   const filasOrdenadas = useMemo(() => {
     if (!sortCol) return filas
@@ -113,6 +119,7 @@ export default function ReporteLegalizaciones() {
     montoReal: filas.reduce((s, f) => s + f.montoReal, 0),
     anticipos: filas.reduce((s, f) => s + f.anticipos, 0),
     cuentasCobro: filas.reduce((s, f) => s + f.cuentasCobro, 0),
+    tarjetaCredito: filas.reduce((s, f) => s + f.tarjetaCredito, 0),
   }), [filas])
 
   const th: React.CSSProperties = {
@@ -155,10 +162,10 @@ export default function ReporteLegalizaciones() {
         {([
           { label: 'Anticipos + Reembolsos', value: fmt(totales.anticipos), pctVal: totales.montoReal > 0 ? (totales.anticipos / totales.montoReal) * 100 : 0, icon: <DollarSign style={{ width: 20, height: 20, color: '#1D4ED8' }} />, color: '#EFF6FF', border: '#BFDBFE' },
           { label: 'Cuentas de Cobro', value: fmt(totales.cuentasCobro), pctVal: totales.montoReal > 0 ? (totales.cuentasCobro / totales.montoReal) * 100 : 0, icon: <CreditCard style={{ width: 20, height: 20, color: '#7C3AED' }} />, color: '#F5F3FF', border: '#DDD6FE' },
-          { label: 'Tarjeta Crédito', value: '$ 0', pctVal: -1, icon: <CreditCard style={{ width: 20, height: 20, color: '#D97706' }} />, color: '#FFFBEB', border: '#FDE68A' },
+          { label: 'Tarjeta Crédito', value: fmt(totales.tarjetaCredito), pctVal: totales.montoReal > 0 ? (totales.tarjetaCredito / totales.montoReal) * 100 : 0, icon: <CreditCard style={{ width: 20, height: 20, color: '#D97706' }} />, color: '#FFFBEB', border: '#FDE68A' },
         ] as { label: string; value: string; pctVal: number; icon: React.ReactNode; color: string; border: string }[]).map(k => {
           const isRed = k.pctVal > 5
-          const pctStr = k.pctVal >= 0 ? k.pctVal.toFixed(1) + '% del vendido' : 'Módulo próximamente'
+          const pctStr = k.pctVal >= 0 ? k.pctVal.toFixed(1) + '% del vendido' : ''
           return (
             <div key={k.label} style={{ background: k.color, border: `1px solid ${k.border}`, borderRadius: 12, padding: '18px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -229,6 +236,7 @@ export default function ReporteLegalizaciones() {
               <th style={thR}>Cuentas de Cobro</th>
               <th style={{ ...thR, minWidth: 80 }}>CC %</th>
               <th style={thR}>Tarjeta Crédito</th>
+              <th style={{ ...thR, minWidth: 80 }}>TC %</th>
             </tr>
           </thead>
           <tbody>
@@ -256,9 +264,8 @@ export default function ReporteLegalizaciones() {
                 <td style={tdR}>{f.anticipos > 0 ? pctBadge(f.anticipos, f.montoReal) : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>—</span>}</td>
                 <td style={tdR}>{f.cuentasCobro > 0 ? fmt(f.cuentasCobro) : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>$ 0</span>}</td>
                 <td style={tdR}>{f.cuentasCobro > 0 ? pctBadge(f.cuentasCobro, f.montoReal) : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>—</span>}</td>
-                <td style={{ ...td, textAlign: 'right', color: '#D1D5DB', fontSize: 11, fontStyle: 'italic' }}>
-                  Próximamente
-                </td>
+                <td style={tdR}>{f.tarjetaCredito > 0 ? fmt(f.tarjetaCredito) : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>$ 0</span>}</td>
+                <td style={tdR}>{f.tarjetaCredito > 0 ? pctBadge(f.tarjetaCredito, f.montoReal) : <span style={{ color: '#D1D5DB', fontWeight: 400 }}>—</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -281,7 +288,12 @@ export default function ReporteLegalizaciones() {
                     {pct(totales.cuentasCobro, totales.montoReal)}
                   </span>
                 </td>
-                <td style={tdR}>—</td>
+                <td style={{ ...tdR, fontWeight: 800, fontSize: 14, color: '#D97706' }}>{fmt(totales.tarjetaCredito)}</td>
+                <td style={tdR}>
+                  <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 12, background: '#FFFBEB', color: '#D97706', fontWeight: 700 }}>
+                    {pct(totales.tarjetaCredito, totales.montoReal)}
+                  </span>
+                </td>
               </tr>
             </tfoot>
           )}

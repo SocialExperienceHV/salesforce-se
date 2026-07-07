@@ -12,19 +12,19 @@ import { useStore } from '@/lib/store'
 import { tieneAcceso } from '@/lib/permisos'
 
 const ALL_NAV = [
-  { href: '/dashboard',       label: 'Dashboard',              icon: LayoutDashboard },
   { href: '/clientes',        label: 'Clientes',               icon: Building2 },
   { href: '/proyectos',       label: 'Proyectos',              icon: FolderOpen },
   { href: '/seguimiento',     label: 'Seguimiento',            icon: TrendingUp },
   { href: '/trafico',         label: 'Tráfico',                icon: Layers },
-  { href: '/calendar',        label: 'Calendar',               icon: Calendar },
   { href: '/plan-trabajo',    label: 'Plan de trabajo',        icon: List },
-  { href: '/nomina',          label: 'Nómina',                 icon: Wallet },
+  { href: '/calendar',        label: 'Calendar',               icon: Calendar },
   { href: '/personas',        label: 'Equipo',                 icon: Users },
+  { href: '/nomina',          label: 'Nómina',                 icon: Wallet },
   { href: '/prospeccion',     label: 'Prospección',            icon: Search },
   { href: '/legalizaciones',  label: 'Legalizaciones',         icon: Receipt },
   { href: '/tarjeta-credito', label: 'Tarjeta Crédito',        icon: CreditCard },
   { href: '/reportes',        label: 'Reporte Legalizaciones', icon: BarChart3 },
+  { href: '/dashboard',       label: 'Dashboard',              icon: LayoutDashboard },
   { href: '/administracion',  label: 'Administración',         icon: Settings },
 ]
 
@@ -43,7 +43,7 @@ export function Sidebar() {
             <Calendar style={{ width: 16, height: 16, color: '#fff' }} />
           </div>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-0.3px' }}>
-            Calendar <span style={{ color: '#1A56DB' }}>2.0</span>
+            Salesforce <span style={{ color: '#1A56DB' }}>SE</span>
           </span>
         </Link>
       </div>

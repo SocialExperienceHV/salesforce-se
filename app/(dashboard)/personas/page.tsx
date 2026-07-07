@@ -235,11 +235,10 @@ export default function PersonasPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
         {[
           { label: 'Total personas', value: personasStore.length, Icon: Users, bg: '#EFF6FF', color: '#1D4ED8' },
           { label: 'Activas',        value: totalActivos,          Icon: UserCheck, bg: '#F0FDF4', color: '#059669' },
-          { label: 'Con foto',       value: personasStore.filter(p => p.foto).length, Icon: Crown, bg: '#F5F3FF', color: '#7C3AED' },
         ].map(({ label, value, Icon, bg, color }) => (
           <div key={label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 9, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
