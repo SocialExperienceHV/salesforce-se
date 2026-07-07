@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { supabase } from './supabase'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ export type Proyecto = {
   monto: number
   estadoComercial: 'En propuesta' | 'En negociación' | 'Vendido' | 'Perdido'
   descripcion: string
-  centroCosto?: string             // 4 dígitos, se asigna al vender
+  centroCosto?: string
   montoRealVendido?: number
   costoCreatividad?: number
   rentabilidadProduccion?: number
@@ -52,19 +53,19 @@ export type PersonaStore = {
   area: string
   cargo: string
   costoMensual: number
-  email?: string
+  email: string
+  clave: string
+  permiso: string
+  estado: 'Activo' | 'Inactivo'
+  foto?: string
   cedula?: string
-  clave?: string
-  foto?: string        // base64
-  permiso?: string
   jefe?: string
-  estado?: 'Activo' | 'Inactivo'
 }
 
 export type ContactoCliente = {
   id: string
   area: string
-  personas: { nombre: string; email: string; telefono: string }[]
+  personas: { nombre: string; email?: string; telefono?: string }[]
 }
 
 export type Cliente = {
@@ -75,20 +76,17 @@ export type Cliente = {
   logo?: string
   ejecutivo: string
   subclientes: string[]
-  contactos?: ContactoCliente[]
   proyectos: number
   estado: 'Activo' | 'Inactivo'
   createdAt: string
+  contactos?: ContactoCliente[]
 }
 
 export type GastoLegalizacion = {
+  tipoFactura: 'FE' | 'Documento equivalente' | 'Documento en el exterior' | 'Cuenta de cobro'
   id: string
   centroCosto: string
   tipoGasto: string
-  tipoFactura: 'FE' | 'Cuenta de cobro'
-  cedulaCuentaCobro?: string
-  soporteCuentaNombre?: string
-  soporteCuentaData?: string  // base64
   ciudadFecha: string
   descripcion: string
   pesos: number
@@ -96,7 +94,10 @@ export type GastoLegalizacion = {
   tasaCambio: number
   total: number
   soporteNombre?: string
-  soporteData?: string  // base64
+  soporteData?: string
+  soporteCuentaNombre?: string
+  soporteCuentaData?: string
+  cedulaCuentaCobro?: string
 }
 
 export type HistorialLeg = {
@@ -108,31 +109,24 @@ export type HistorialLeg = {
 
 export type Legalizacion = {
   id: string
-  codigo: string   // SE-LG-001/26
-  // Encabezado
+  codigo: string
   fecha: string
   tipoDocumento: string
-  tipoLegalizacion: 'Reembolso' | 'Legalización de anticipo'
+  tipoLegalizacion: string
   noAnticipo: string
   fechaReembolso: string
-  // Responsable
   responsable: string
   cargo: string
-  // Proyecto
   proyectoId: string
   proyecto: string
   centroCosto: string
   productor: string
   cliente: string
-  // Gastos
   gastos: GastoLegalizacion[]
   anticipo: number
-  // Observaciones
   observaciones: string
-  // Estado
-  estado: 'En revisión' | 'Aprobada'
+  estado: string
   observacionContabilidad?: string
-  // Trazabilidad
   creadoPor: string
   historial: HistorialLeg[]
   createdAt: string
@@ -196,11 +190,7 @@ export type Prospecto = {
   createdAt: string
 }
 
-// ─── Initial mock data ─────────────────────────────────────────────────────────
-
-const INIT_PROYECTOS: Proyecto[] = []
-
-const INIT_CLIENTES: Cliente[] = []
+// ─── Initial personas (seed only if DB is empty) ───────────────────────────────
 
 const INIT_PERSONAS_STORE: PersonaStore[] = [
   { id: 'ps1',  nombre: 'Santiago González', area: 'Creatividad',       cargo: 'Líder Creativo',        costoMensual: 7800000, email: 'santiago.gonzalez@socialexperience.com.co', clave: '1234', permiso: 'Líder',             estado: 'Activo' },
@@ -210,8 +200,8 @@ const INIT_PERSONAS_STORE: PersonaStore[] = [
   { id: 'ps5',  nombre: 'Álvaro',            area: 'Diseño gráfico',    cargo: 'Diseñador Gráfico',     costoMensual: 4200000, email: 'alvaro@socialexperience.com.co',            clave: '1234', permiso: 'Producción',        estado: 'Activo' },
   { id: 'ps6',  nombre: 'Kate',              area: 'Diseño gráfico',    cargo: 'Diseñador Gráfico',     costoMensual: 4200000, email: 'kate@socialexperience.com.co',              clave: '1234', permiso: 'Producción',        estado: 'Activo' },
   { id: 'ps7',  nombre: 'Jonathan Ramírez',  area: 'Diseño industrial', cargo: 'Líder Industrial',      costoMensual: 7000000, email: 'jonathan.ramirez@socialexperience.com.co', clave: '1234', permiso: 'Líder',             estado: 'Activo' },
-  { id: 'ps8',  nombre: 'Felipe Aguilón',    area: 'Comercial',         cargo: 'KAM',                   costoMensual: 7500000, email: 'felipe.aguilon@socialexperience.com.co',   clave: '1234', permiso: 'KAM',               estado: 'Activo' },
-  { id: 'ps9',  nombre: 'Hans Vargas',       area: 'Comercial',         cargo: 'KAM',                   costoMensual: 9600000, email: 'hans@socialexperience.com.co',             clave: 'hans2026', permiso: 'Super Admin',  estado: 'Activo' },
+  { id: 'ps8',  nombre: 'Felipe Aguilón',    area: 'Comercial',         cargo: 'KAM',                   costoMensual: 7500000, email: 'felipe@socialexperience.com.co',           clave: 'FA123456', permiso: 'Super Admin',   estado: 'Activo' },
+  { id: 'ps9',  nombre: 'Hans Vargas',       area: 'Comercial',         cargo: 'KAM',                   costoMensual: 9600000, email: 'hans@socialexperience.com.co',             clave: 'hans2026', permiso: 'Super Admin',   estado: 'Activo' },
   { id: 'ps10', nombre: 'Iván Londoño',      area: 'Comercial',         cargo: 'KAM',                   costoMensual: 7200000, email: 'ivan.londono@socialexperience.com.co',     clave: '1234', permiso: 'KAM',               estado: 'Activo' },
   { id: 'ps11', nombre: 'Francisco Cárdenas',area: 'Producción',        cargo: 'Director Producción',   costoMensual: 8500000, email: 'francisco.cardenas@socialexperience.com.co',clave: '1234', permiso: 'Líder Producción',  estado: 'Activo' },
   { id: 'ps12', nombre: 'Andrés Arellano',   area: 'Producción',        cargo: 'Productor Sr',          costoMensual: 6600000, email: 'andres.arellano@socialexperience.com.co',  clave: '1234', permiso: 'Producción',        estado: 'Activo' },
@@ -220,24 +210,7 @@ const INIT_PERSONAS_STORE: PersonaStore[] = [
   { id: 'ps15', nombre: 'Juan Vargas',       area: 'Administración',    cargo: 'Administrativo',        costoMensual: 5000000, email: 'juan.vargas@socialexperience.com.co',      clave: '1234', permiso: 'Administración',    estado: 'Activo' },
 ]
 
-const INIT_LEGALIZACIONES: Legalizacion[] = []
-
-const INIT_REGISTROS: RegistroTiempo[] = []
-const INIT_PROSPECTOS: Prospecto[] = []
-
 // ─── Auth helpers ──────────────────────────────────────────────────────────────
-
-function loadLS<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch { return fallback }
-}
-
-function saveLS(key: string, value: unknown) {
-  try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
-}
 
 export function getLoggedUserId(): string | null {
   if (typeof window === 'undefined') return null
@@ -247,6 +220,38 @@ export function getLoggedUserId(): string | null {
 export function setLoggedUserId(id: string | null) {
   if (id) localStorage.setItem('cal2_logged_user_id', id)
   else localStorage.removeItem('cal2_logged_user_id')
+}
+
+// ─── Supabase helpers ──────────────────────────────────────────────────────────
+
+async function sbGet<T>(table: string): Promise<T[]> {
+  const { data } = await supabase.from(table).select('data')
+  return (data ?? []).map((r: { data: T }) => r.data)
+}
+
+async function sbGetOverrides(): Promise<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>> {
+  const { data } = await supabase.from('plan_overrides').select('key, data')
+  const result: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }> = {}
+  ;(data ?? []).forEach((r: { key: string; data: { dias: string[]; estado: 'En proceso' | 'Finalizado' } }) => {
+    result[r.key] = r.data
+  })
+  return result
+}
+
+async function sbInsert(table: string, id: string, data: unknown) {
+  await supabase.from(table).insert({ id, data })
+}
+
+async function sbUpdate(table: string, id: string, data: unknown) {
+  await supabase.from(table).update({ data }).eq('id', id)
+}
+
+async function sbDelete(table: string, id: string) {
+  await supabase.from(table).delete().eq('id', id)
+}
+
+async function sbUpsert(table: string, id: string, data: unknown) {
+  await supabase.from(table).upsert({ id, data })
 }
 
 // ─── Context ───────────────────────────────────────────────────────────────────
@@ -302,58 +307,65 @@ type StoreCtx = {
 const Ctx = createContext<StoreCtx | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [proyectos, setProyectos]         = useState<Proyecto[]>(INIT_PROYECTOS)
-  const [registros, setRegistros]         = useState<RegistroTiempo[]>(INIT_REGISTROS)
-  const [clientes, setClientes]           = useState<Cliente[]>(INIT_CLIENTES)
-  const [prospectos, setProspectos]       = useState<Prospecto[]>(INIT_PROSPECTOS)
-  const [personasStore, setPersonasStore] = useState<PersonaStore[]>(INIT_PERSONAS_STORE)
+  const [proyectos, setProyectos]         = useState<Proyecto[]>([])
+  const [registros, setRegistros]         = useState<RegistroTiempo[]>([])
+  const [clientes, setClientes]           = useState<Cliente[]>([])
+  const [prospectos, setProspectos]       = useState<Prospecto[]>([])
+  const [personasStore, setPersonasStore] = useState<PersonaStore[]>([])
   const [planOverrides, setPlanOverrides] = useState<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>>({})
-  const [legalizaciones, setLegalizaciones] = useState<Legalizacion[]>(INIT_LEGALIZACIONES)
-  const [tarjetasCorp, setTarjetasCorp] = useState<TarjetaCorporativa[]>([])
-  const [documentosTC, setDocumentosTC] = useState<DocumentoTC[]>([])
+  const [legalizaciones, setLegalizaciones] = useState<Legalizacion[]>([])
+  const [tarjetasCorp, setTarjetasCorp]   = useState<TarjetaCorporativa[]>([])
+  const [documentosTC, setDocumentosTC]   = useState<DocumentoTC[]>([])
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [currentUser, setCurrentUserState] = useState<PersonaStore | null>(null)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    const personas = loadLS('cal2_personas_store', INIT_PERSONAS_STORE)
-    setProyectos(loadLS('cal2_proyectos', INIT_PROYECTOS))
-    setRegistros(loadLS('cal2_registros', INIT_REGISTROS))
-    setClientes(loadLS('cal2_clientes', INIT_CLIENTES))
-    setProspectos(loadLS('cal2_prospectos', INIT_PROSPECTOS))
-    setPersonasStore(personas)
-    setPlanOverrides(loadLS('cal2_plan_overrides', {}))
-    setTarjetasCorp(loadLS('cal2_tarjetas_corp', []))
-    setDocumentosTC(loadLS('cal2_documentos_tc', []))
-    setNotificaciones(loadLS('cal2_notificaciones', []))
-    const legsRaw: Legalizacion[] = loadLS('cal2_legalizaciones', INIT_LEGALIZACIONES)
-    // Migrar registros sin código consecutivo
-    const legsOrdenadas = [...legsRaw].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    let needsSave = false
-    const yearCounters: Record<string, number> = {}
-    legsOrdenadas.forEach(l => {
-      if (!l.codigo) {
-        const year = new Date(l.createdAt).getFullYear().toString().slice(2)
-        yearCounters[year] = (yearCounters[year] ?? 0) + 1
-        l.codigo = `SE-LG-${String(yearCounters[year]).padStart(3, '0')}/${year}`
-        needsSave = true
-      } else {
-        const m = l.codigo.match(/SE-LG-(\d+)\/(\d+)/)
-        if (m) yearCounters[m[2]] = Math.max(yearCounters[m[2]] ?? 0, parseInt(m[1], 10))
-      }
-    })
-    // Restaurar orden original (más reciente primero)
-    const legsMigradas = legsRaw.map(l => legsOrdenadas.find(o => o.id === l.id) ?? l)
-    if (needsSave) saveLS('cal2_legalizaciones', legsMigradas)
-    setLegalizaciones(legsMigradas)
+    async function loadAll() {
+      const [
+        personasData, proyectosData, clientesData, prospectosData,
+        legalizacionesData, tarjetasData, documentosTCData,
+        registrosData, notificacionesData, overridesData
+      ] = await Promise.all([
+        sbGet<PersonaStore>('personas'),
+        sbGet<Proyecto>('proyectos'),
+        sbGet<Cliente>('clientes'),
+        sbGet<Prospecto>('prospectos'),
+        sbGet<Legalizacion>('legalizaciones'),
+        sbGet<TarjetaCorporativa>('tarjetas_corp'),
+        sbGet<DocumentoTC>('documentos_tc'),
+        sbGet<RegistroTiempo>('registros_tiempo'),
+        sbGet<Notificacion>('notificaciones'),
+        sbGetOverrides(),
+      ])
 
-    // Restaurar usuario logueado
-    const uid = getLoggedUserId()
-    if (uid) {
-      const found = personas.find((p: PersonaStore) => p.id === uid)
-      if (found) setCurrentUserState(found)
+      // Seed personas if DB is empty
+      let personas = personasData
+      if (personas.length === 0) {
+        await Promise.all(INIT_PERSONAS_STORE.map(p => sbInsert('personas', p.id, p)))
+        personas = INIT_PERSONAS_STORE
+      }
+
+      setPersonasStore(personas)
+      setProyectos(proyectosData)
+      setClientes(clientesData)
+      setProspectos(prospectosData)
+      setLegalizaciones(legalizacionesData)
+      setTarjetasCorp(tarjetasData)
+      setDocumentosTC(documentosTCData)
+      setRegistros(registrosData)
+      setNotificaciones(notificacionesData)
+      setPlanOverrides(overridesData)
+
+      // Restore logged user
+      const uid = getLoggedUserId()
+      if (uid) {
+        const found = personas.find(p => p.id === uid)
+        if (found) setCurrentUserState(found)
+      }
+      setReady(true)
     }
-    setReady(true)
+    loadAll()
   }, [])
 
   function setCurrentUser(p: PersonaStore | null) {
@@ -363,8 +375,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function addProyecto(p: Omit<Proyecto, 'id' | 'createdAt'>) {
     const newP: Proyecto = { ...p, id: `p${Date.now()}`, createdAt: new Date().toISOString() }
-    const next = [newP, ...proyectos]
-    setProyectos(next); saveLS('cal2_proyectos', next)
+    setProyectos(prev => [newP, ...prev])
+    sbInsert('proyectos', newP.id, newP)
     addNotificacionInternal({
       tipo: 'proyecto_nuevo',
       titulo: 'Nuevo proyecto creado',
@@ -385,71 +397,90 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         href: '/proyectos',
       })
     }
-    const next = proyectos.map(p => p.id === id ? { ...p, ...changes } : p)
-    setProyectos(next); saveLS('cal2_proyectos', next)
+    setProyectos(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, ...changes } : p)
+      const updated = next.find(p => p.id === id)!
+      sbUpdate('proyectos', id, updated)
+      return next
+    })
   }
 
   function addRegistro(r: Omit<RegistroTiempo, 'id' | 'createdAt'>) {
     const newR: RegistroTiempo = { ...r, id: `r${Date.now()}`, createdAt: new Date().toISOString() }
-    const next = [newR, ...registros]
-    setRegistros(next); saveLS('cal2_registros', next)
+    setRegistros(prev => [newR, ...prev])
+    sbInsert('registros_tiempo', newR.id, newR)
   }
 
   function updateRegistro(id: string, changes: Partial<RegistroTiempo>) {
-    const next = registros.map(r => r.id === id ? { ...r, ...changes } : r)
-    setRegistros(next); saveLS('cal2_registros', next)
+    setRegistros(prev => {
+      const next = prev.map(r => r.id === id ? { ...r, ...changes } : r)
+      const updated = next.find(r => r.id === id)!
+      sbUpdate('registros_tiempo', id, updated)
+      return next
+    })
   }
 
   function deleteRegistro(id: string) {
-    const next = registros.filter(r => r.id !== id)
-    setRegistros(next); saveLS('cal2_registros', next)
+    setRegistros(prev => prev.filter(r => r.id !== id))
+    sbDelete('registros_tiempo', id)
   }
 
   function addCliente(c: Omit<Cliente, 'id' | 'createdAt'>) {
     const newC: Cliente = { ...c, id: `cl${Date.now()}`, createdAt: new Date().toISOString() }
-    const next = [newC, ...clientes]
-    setClientes(next); saveLS('cal2_clientes', next)
+    setClientes(prev => [newC, ...prev])
+    sbInsert('clientes', newC.id, newC)
   }
 
   function updateCliente(id: string, changes: Partial<Cliente>) {
-    const next = clientes.map(c => c.id === id ? { ...c, ...changes } : c)
-    setClientes(next); saveLS('cal2_clientes', next)
+    setClientes(prev => {
+      const next = prev.map(c => c.id === id ? { ...c, ...changes } : c)
+      const updated = next.find(c => c.id === id)!
+      sbUpdate('clientes', id, updated)
+      return next
+    })
   }
 
   function addProspecto(p: Omit<Prospecto, 'id' | 'createdAt'>) {
     const newP: Prospecto = { ...p, id: `pr${Date.now()}`, createdAt: new Date().toISOString() }
-    const next = [newP, ...prospectos]
-    setProspectos(next); saveLS('cal2_prospectos', next)
+    setProspectos(prev => [newP, ...prev])
+    sbInsert('prospectos', newP.id, newP)
   }
 
   function updateProspecto(id: string, changes: Partial<Prospecto>) {
-    const next = prospectos.map(p => p.id === id ? { ...p, ...changes } : p)
-    setProspectos(next); saveLS('cal2_prospectos', next)
+    setProspectos(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, ...changes } : p)
+      const updated = next.find(p => p.id === id)!
+      sbUpdate('prospectos', id, updated)
+      return next
+    })
   }
 
   function addPersonaStore(p: Omit<PersonaStore, 'id'>) {
     const newP: PersonaStore = { ...p, id: `ps${Date.now()}` }
-    const next = [...personasStore, newP]
-    setPersonasStore(next); saveLS('cal2_personas_store', next)
+    setPersonasStore(prev => [...prev, newP])
+    sbInsert('personas', newP.id, newP)
   }
 
   function updatePersonaStore(id: string, changes: Partial<PersonaStore>) {
-    const next = personasStore.map(p => p.id === id ? { ...p, ...changes } : p)
-    setPersonasStore(next); saveLS('cal2_personas_store', next)
-    // Actualizar currentUser si es el mismo
+    setPersonasStore(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, ...changes } : p)
+      const updated = next.find(p => p.id === id)!
+      sbUpdate('personas', id, updated)
+      return next
+    })
     if (currentUser?.id === id) setCurrentUserState(prev => prev ? { ...prev, ...changes } : prev)
   }
 
   function updatePlanOverride(key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) {
     const current = planOverrides[key] ?? { dias: [], estado: 'En proceso' as const }
-    const next = { ...planOverrides, [key]: { ...current, ...changes } }
-    setPlanOverrides(next); saveLS('cal2_plan_overrides', next)
+    const updated = { ...current, ...changes }
+    setPlanOverrides(prev => ({ ...prev, [key]: updated }))
+    sbUpsert('plan_overrides', key, updated)
   }
 
   function addLegalizacion(l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>): string {
     const id = `lg${Date.now()}`
     const year = new Date().getFullYear().toString().slice(2)
-    // Busca el mayor consecutivo existente para el año en curso
     const maxSeq = legalizaciones.reduce((max, leg) => {
       const m = leg.codigo?.match(/SE-LG-(\d+)\/(\d+)/)
       if (m && m[2] === year) return Math.max(max, parseInt(m[1], 10))
@@ -457,52 +488,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 0)
     const codigo = `SE-LG-${String(maxSeq + 1).padStart(3, '0')}/${year}`
     const newL: Legalizacion = { ...l, id, codigo, createdAt: new Date().toISOString() }
-    const next = [newL, ...legalizaciones]
-    setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
+    setLegalizaciones(prev => [newL, ...prev])
+    sbInsert('legalizaciones', newL.id, newL)
     return id
   }
 
   function updateLegalizacion(id: string, changes: Partial<Legalizacion>) {
-    const next = legalizaciones.map(l => l.id === id ? { ...l, ...changes } : l)
-    setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
+    setLegalizaciones(prev => {
+      const next = prev.map(l => l.id === id ? { ...l, ...changes } : l)
+      const updated = next.find(l => l.id === id)!
+      sbUpdate('legalizaciones', id, updated)
+      return next
+    })
   }
 
   function addTarjetaCorp(t: Omit<TarjetaCorporativa, 'id' | 'createdAt'>) {
     const newT: TarjetaCorporativa = { ...t, id: `tc${Date.now()}`, createdAt: new Date().toISOString() }
-    const next = [...tarjetasCorp, newT]
-    setTarjetasCorp(next); saveLS('cal2_tarjetas_corp', next)
+    setTarjetasCorp(prev => [...prev, newT])
+    sbInsert('tarjetas_corp', newT.id, newT)
   }
 
   function updateTarjetaCorp(id: string, changes: Partial<TarjetaCorporativa>) {
-    const next = tarjetasCorp.map(t => t.id === id ? { ...t, ...changes } : t)
-    setTarjetasCorp(next); saveLS('cal2_tarjetas_corp', next)
+    setTarjetasCorp(prev => {
+      const next = prev.map(t => t.id === id ? { ...t, ...changes } : t)
+      const updated = next.find(t => t.id === id)!
+      sbUpdate('tarjetas_corp', id, updated)
+      return next
+    })
   }
 
   function addDocumentoTC(d: Omit<DocumentoTC, 'id' | 'createdAt'>): string {
     const id = `dtc${Date.now()}`
     const newD: DocumentoTC = { ...d, id, createdAt: new Date().toISOString() }
-    const next = [newD, ...documentosTC]
-    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+    setDocumentosTC(prev => [newD, ...prev])
+    sbInsert('documentos_tc', newD.id, newD)
     return id
   }
 
   function updateDocumentoTC(id: string, changes: Partial<DocumentoTC>) {
-    const next = documentosTC.map(d => d.id === id ? { ...d, ...changes } : d)
-    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+    setDocumentosTC(prev => {
+      const next = prev.map(d => d.id === id ? { ...d, ...changes } : d)
+      const updated = next.find(d => d.id === id)!
+      sbUpdate('documentos_tc', id, updated)
+      return next
+    })
   }
 
   function deleteDocumentoTC(id: string) {
-    const next = documentosTC.filter(d => d.id !== id)
-    setDocumentosTC(next); saveLS('cal2_documentos_tc', next)
+    setDocumentosTC(prev => prev.filter(d => d.id !== id))
+    sbDelete('documentos_tc', id)
   }
 
   function addNotificacionInternal(n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) {
     const newN: Notificacion = { ...n, id: `notif${Date.now()}`, leida: false, createdAt: new Date().toISOString() }
-    setNotificaciones(prev => {
-      const next = [newN, ...prev]
-      saveLS('cal2_notificaciones', next)
-      return next
-    })
+    setNotificaciones(prev => [newN, ...prev])
+    sbInsert('notificaciones', newN.id, newN)
   }
 
   function addNotificacion(n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) {
@@ -512,7 +552,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   function marcarLeida(id: string) {
     setNotificaciones(prev => {
       const next = prev.map(n => n.id === id ? { ...n, leida: true } : n)
-      saveLS('cal2_notificaciones', next)
+      const updated = next.find(n => n.id === id)!
+      sbUpdate('notificaciones', id, updated)
       return next
     })
   }
@@ -520,7 +561,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   function marcarTodasLeidas() {
     setNotificaciones(prev => {
       const next = prev.map(n => ({ ...n, leida: true }))
-      saveLS('cal2_notificaciones', next)
+      next.forEach(n => sbUpdate('notificaciones', n.id, n))
       return next
     })
   }
