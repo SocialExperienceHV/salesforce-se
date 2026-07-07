@@ -8,14 +8,14 @@ import { RouteGuard } from '@/components/layout/route-guard'
 import { useStore } from '@/lib/store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useStore()
+  const { currentUser, ready } = useStore()
   const router = useRouter()
 
   useEffect(() => {
-    if (currentUser === null) router.replace('/login')
-  }, [currentUser, router])
+    if (ready && currentUser === null) router.replace('/login')
+  }, [ready, currentUser, router])
 
-  if (!currentUser) return null
+  if (!ready || !currentUser) return null
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#F9FAFB' }}>

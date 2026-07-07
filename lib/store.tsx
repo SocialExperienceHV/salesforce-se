@@ -266,6 +266,7 @@ type StoreCtx = {
 
   currentUser: PersonaStore | null
   setCurrentUser: (p: PersonaStore | null) => void
+  ready: boolean
 
   planOverrides: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>
   updatePlanOverride: (key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) => void
@@ -420,8 +421,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLegalizaciones(next); saveLS('cal2_legalizaciones', next)
   }
 
-  if (!ready) return null
-
   return (
     <Ctx.Provider value={{
       proyectos, addProyecto, updateProyecto,
@@ -430,6 +429,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       prospectos, addProspecto, updateProspecto,
       personasStore, addPersonaStore, updatePersonaStore,
       currentUser, setCurrentUser,
+      ready,
       planOverrides, updatePlanOverride,
       legalizaciones, addLegalizacion, updateLegalizacion,
     }}>

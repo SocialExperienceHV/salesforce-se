@@ -74,6 +74,7 @@ export const PERMISOS: Record<Rol, string[]> = {
     '/legalizaciones',
     '/tarjeta-credito',
     '/reportes',
+    '/administracion',
   ],
 
   'Contabilidad': [

@@ -217,7 +217,7 @@ export default function PlanTrabajoPage() {
       if (pasados.length === 0) return
 
       // Calcular el siguiente día hábil: si hoy es viernes (idx=4) → 'Siguiente semana', si no → día siguiente
-      const nextDiaPlan: DiaPlan = diaHoyIdx === 4 ? 'Siguiente semana' : DIAS[diaHoyIdx]
+      const nextDiaPlan: DiaPlan = diaHoyIdx >= 4 ? 'Siguiente semana' : DIAS[diaHoyIdx + 1]
 
       // Quitar días pasados, agregar siguiente si no está ya
       const sinPasados = dias.filter(d => !pasados.includes(d))

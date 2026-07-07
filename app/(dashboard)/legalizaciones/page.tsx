@@ -635,7 +635,7 @@ export default function LegalizacionesPage() {
   const totalReemb     = legsFiltradas.filter(l => l.tipoLegalizacion === 'Reembolso').reduce((s, l) => s + totalLegalizacion(l), 0)
   const totalCuentaCob = legsFiltradas.reduce((s, l) => s + l.gastos.filter(g => g.tipoFactura === 'Cuenta de cobro').reduce((gs, g) => gs + g.total, 0), 0)
   const pendientes   = legsFiltradas.filter(l => l.estado === 'En revisión').length
-  const aprobadas    = legalizaciones.filter(l => l.estado === 'Aprobada').length
+  const aprobadas    = legsFiltradas.filter(l => l.estado === 'Aprobada').length
 
   function handleSaveForm(data: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) {
     if (editando) {
