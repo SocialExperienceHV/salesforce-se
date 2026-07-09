@@ -586,8 +586,8 @@ export default function TarjetaCredito() {
                   <th style={thT}>Centro Costos</th>
                   <th style={thT}>Descripción</th>
                   <th style={{ ...thT, textAlign:'right' }}>Valor</th>
-                  <th style={thT}>Estado</th>
                   <th style={thT}>Gespro</th>
+                  <th style={thT}>Estado</th>
                   <th style={thT}>Acción</th>
                 </tr>
               </thead>
@@ -629,14 +629,14 @@ export default function TarjetaCredito() {
                       </td>
                       <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
                       <td style={tdT}>
-                        {item.status==='Entregado'
-                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>✓ Entregado</span>
-                          : <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'3px 8px', borderRadius:20 }}>Pendiente</span>}
-                      </td>
-                      <td style={tdT}>
                         {(item.gespro??'No Cargado')==='Cargado'
                           ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>Cargado</span>
                           : <span style={{ fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', padding:'3px 8px', borderRadius:20 }}>No Cargado</span>}
+                      </td>
+                      <td style={tdT}>
+                        {item.status==='Entregado'
+                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>✓ Entregado</span>
+                          : <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'3px 8px', borderRadius:20 }}>Pendiente</span>}
                       </td>
                       <td style={tdT} onClick={e=>e.stopPropagation()}>
                         <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
