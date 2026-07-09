@@ -482,6 +482,10 @@ export default function TarjetaCredito() {
     const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
     updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,status}:i) })
   }
+  function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') {
+    const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
+    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,gespro}:i) })
+  }
 
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string) {
     const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
