@@ -680,21 +680,10 @@ export default function TarjetaCredito() {
                           <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.descripcion||'—'}</span>
                         </td>
                         <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
-                        <td style={tdT} onClick={e=>e.stopPropagation()}>
-                          <div style={{ display:'flex', gap:4 }}>
-                            {(['Cargado','No Cargado'] as const).map(g=>{
-                              const active=gesproDe(item)===g
-                              return (
-                                <button key={g} onClick={()=>updateGespro(doc.id,item.id,g)}
-                                  style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
-                                    border: active?`1.5px solid ${g==='Cargado'?'#10B981':'#D1D5DB'}`:'1.5px solid #E5E7EB',
-                                    background: active?(g==='Cargado'?'#D1FAE5':'#F3F4F6'):'#fff',
-                                    color: active?(g==='Cargado'?'#065F46':'#6B7280'):'#D1D5DB' }}>
-                                  {g}
-                                </button>
-                              )
-                            })}
-                          </div>
+                        <td style={tdT}>
+                          {gesproDe(item)==='Cargado'
+                            ? <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', border:'1.5px solid #10B981' }}>Cargado</span>
+                            : <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', border:'1.5px solid #D1D5DB' }}>No Cargado</span>}
                         </td>
                         <td style={tdT} onClick={e=>e.stopPropagation()}>
                           <div style={{ display:'flex', gap:4 }}>
