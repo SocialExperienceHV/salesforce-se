@@ -149,6 +149,7 @@ export type ItemTC = {
   descripcion?: string
   item?: string
   fechaItem?: string
+  gespro?: 'Cargado' | 'No Cargado'
 }
 
 export type DocumentoTC = {

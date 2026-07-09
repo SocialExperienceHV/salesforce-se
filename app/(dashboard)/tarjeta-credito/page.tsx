@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx'
 const fmt = (n: number) => '$ ' + Math.round(n).toLocaleString('es-CO')
 const today = () => new Date().toISOString().slice(0, 10)
 const newItemId = () => `i${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '', item: '', fechaItem: '' })
+const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '', item: '', fechaItem: '', gespro: 'No Cargado' })
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const labelMes = (ym: string) => { const [y,m] = ym.split('-'); return `${MESES_ES[parseInt(m,10)-1]} ${y}` }
 
@@ -121,6 +121,7 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
               <th style={thS}>Monto</th>
               <th style={thS}>Responsable</th>
               <th style={thS}>Descripción</th>
+              <th style={{ ...thS, minWidth:130 }}>Gespro</th>
               <th style={{ ...thS, minWidth:160 }}>Estado</th>
               <th style={{ ...thS, textAlign:'right' }}>
                 {!doc.finalizado && (
@@ -179,6 +180,24 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
                   <input value={item.descripcion??''}
                     onChange={e=>updateItem(item.id,{descripcion:e.target.value})}
                     placeholder="Concepto..." style={inp} disabled={doc.finalizado} />
+                </td>
+                <td style={{ padding:'6px 8px', verticalAlign:'middle', minWidth:130 }}>
+                  <div style={{ display:'flex', gap:4 }}>
+                    {(['Cargado','No Cargado'] as const).map(g=>{
+                      const active = (item.gespro??'No Cargado')===g
+                      return (
+                        <button key={g} onClick={()=>!doc.finalizado&&updateItem(item.id,{gespro:g})}
+                          style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'4px 8px', borderRadius:6, fontSize:11, fontWeight:700,
+                            border: active ? `1.5px solid ${g==='Cargado'?'#10B981':'#E5E7EB'}` : '1.5px solid #E5E7EB',
+                            cursor: doc.finalizado?'default':'pointer',
+                            background: active ? (g==='Cargado'?'#D1FAE5':'#F3F4F6') : '#fff',
+                            color: active ? (g==='Cargado'?'#065F46':'#374151') : '#9CA3AF',
+                            opacity: doc.finalizado&&!active?0.4:1 }}>
+                          {g}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </td>
                 <td style={{ padding:'6px 8px', verticalAlign:'middle' }}>
                   <div style={{ display:'flex', gap:4 }}>
@@ -568,6 +587,7 @@ export default function TarjetaCredito() {
                   <th style={thT}>Descripción</th>
                   <th style={{ ...thT, textAlign:'right' }}>Valor</th>
                   <th style={thT}>Estado</th>
+                  <th style={thT}>Gespro</th>
                   <th style={thT}>Acción</th>
                 </tr>
               </thead>
@@ -612,6 +632,11 @@ export default function TarjetaCredito() {
                         {item.status==='Entregado'
                           ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>✓ Entregado</span>
                           : <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'3px 8px', borderRadius:20 }}>Pendiente</span>}
+                      </td>
+                      <td style={tdT}>
+                        {(item.gespro??'No Cargado')==='Cargado'
+                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>Cargado</span>
+                          : <span style={{ fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', padding:'3px 8px', borderRadius:20 }}>No Cargado</span>}
                       </td>
                       <td style={tdT} onClick={e=>e.stopPropagation()}>
                         <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
