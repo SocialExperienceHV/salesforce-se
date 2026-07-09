@@ -536,7 +536,7 @@ export default function CalendarPage() {
   const [editing, setEditing]     = useState<RegistroTiempo | null>(null)
   const { proyectos, registros, addRegistro, updateRegistro, deleteRegistro, currentUser, personasStore } = useStore()
   const CURRENT_USER = currentUser!
-  const [filtroPersona, setFiltroPersona] = useState('Todos')
+  const [filtroPersona, setFiltroPersona] = useState(CURRENT_USER.nombre)
 
   const empleados = useMemo(() => {
     const nombres = Array.from(new Set(registros.map(r => r.persona))).sort()
