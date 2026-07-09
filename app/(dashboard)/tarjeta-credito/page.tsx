@@ -433,6 +433,8 @@ export default function TarjetaCredito() {
   const [filtroTarjeta, setFiltroTarjeta] = useState('Todas')
   const [filtroResponsable, setFiltroResponsable] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
+  const [filtroEstado, setFiltroEstado] = useState('Todos')
+  const [filtroGespro, setFiltroGespro] = useState('Todos')
 
   const ccValidos = useMemo(()=>new Set(proyectos.map(p=>p.centroCosto).filter(Boolean) as string[]),[proyectos])
 
@@ -460,10 +462,16 @@ export default function TarjetaCredito() {
     if(filtroTarjeta!=='Todas'&&d.ultimos4!==filtroTarjeta) return false
     if(filtroMes!=='Todos'&&!d.fecha.startsWith(filtroMes)) return false
     if(filtroResponsable!=='Todos'&&!d.items.some(i=>i.responsable===filtroResponsable)) return false
+    if(filtroEstado!=='Todos'&&!d.items.some(i=>i.status===filtroEstado)) return false
+    if(filtroGespro!=='Todos'&&!d.items.some(i=>(i.gespro??'No Cargado')===filtroGespro)) return false
     return true
-  }),[documentosTC,filtroTarjeta,filtroMes,filtroResponsable])
+  }),[documentosTC,filtroTarjeta,filtroMes,filtroResponsable,filtroEstado,filtroGespro])
 
-  const allItems = useMemo(()=>docsFiltrados.flatMap(d=>d.items),[docsFiltrados])
+  const allItems = useMemo(()=>docsFiltrados.flatMap(d=>d.items)
+    .filter(i=>filtroEstado==='Todos'||i.status===filtroEstado)
+    .filter(i=>filtroGespro==='Todos'||(i.gespro??'No Cargado')===filtroGespro)
+    .filter(i=>filtroResponsable==='Todos'||i.responsable===filtroResponsable)
+  ,[docsFiltrados,filtroEstado,filtroGespro,filtroResponsable])
   const totalGlobal     = useMemo(()=>allItems.reduce((s,i)=>s+i.monto,0),[allItems])
   const totalEntregados = useMemo(()=>allItems.filter(i=>i.status==='Entregado').reduce((s,i)=>s+i.monto,0),[allItems])
   const totalPendientes = useMemo(()=>allItems.filter(i=>i.status==='Pendiente').reduce((s,i)=>s+i.monto,0),[allItems])
@@ -550,6 +558,8 @@ export default function TarjetaCredito() {
             { label:'Tarjeta', value:filtroTarjeta, set:setFiltroTarjeta, opts:tarjetasConDocs.map(t=>({v:t,l:t==='Todas'?'Todas':`•••• ${t}`})) },
             { label:'Responsable', value:filtroResponsable, set:setFiltroResponsable, opts:responsablesConDocs.map(r=>({v:r,l:r})) },
             { label:'Mes', value:filtroMes, set:setFiltroMes, opts:[{v:'Todos',l:'Todos'},...mesesConDocs.map(m=>({v:m,l:labelMes(m)}))] },
+            { label:'Estado', value:filtroEstado, set:setFiltroEstado, opts:[{v:'Todos',l:'Todos'},{v:'Pendiente',l:'Pendiente'},{v:'Entregado',l:'Entregado'}] },
+            { label:'Gespro', value:filtroGespro, set:setFiltroGespro, opts:[{v:'Todos',l:'Todos'},{v:'No Cargado',l:'No Cargado'},{v:'Cargado',l:'Cargado'}] },
           ].map(f=>(
             <div key={f.label} style={{ display:'flex', alignItems:'center', gap:5 }}>
               <span style={{ fontSize:12, fontWeight:600, color:'#6B7280' }}>{f.label}:</span>
@@ -594,7 +604,11 @@ export default function TarjetaCredito() {
               {docsFiltrados.flatMap(doc=>{
                 const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
                 return doc.items
-                  .filter(item => filtroResponsable==='Todos' || item.responsable===filtroResponsable)
+                  .filter(item =>
+                    (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
+                    (filtroEstado==='Todos'||item.status===filtroEstado) &&
+                    (filtroGespro==='Todos'||(item.gespro??'No Cargado')===filtroGespro)
+                  )
                   .flatMap((item, idx)=>{
                     const isEditing = editingItemId===item.id
                     const inp: React.CSSProperties = { height:30, border:'1px solid #D1D5DB', borderRadius:6, padding:'0 8px', fontSize:12, color:'#111827', outline:'none', boxSizing:'border-box', width:'100%' }
