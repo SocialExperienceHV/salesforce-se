@@ -507,6 +507,9 @@ export default function SeguimientoPage() {
                 const isVendido = p.estadoComercial === 'Vendido'
                 const costoCC = p.centroCosto ? costosPorCentroCosto[p.centroCosto] : undefined
                 const costoCreat = costoCreatividadMap[p.id]
+                const rentabilidadP = p.montoRealVendido
+                  ? ((p.montoRealVendido - (costoCC ?? 0)) / p.montoRealVendido) * 100
+                  : undefined
                 const utilidadReal = p.montoRealVendido
                   ? ((p.montoRealVendido - (costoCC ?? 0) - (costoCreat ?? 0)) / p.montoRealVendido) * 100
                   : undefined
@@ -572,16 +575,9 @@ export default function SeguimientoPage() {
                     <td style={{ ...td, color: costoCC ? '#B91C1C' : '#D1D5DB', fontWeight: costoCC ? 600 : 400, fontStyle: costoCC ? 'normal' : 'italic', fontSize: costoCC ? 13 : 12 }}>
                       {costoCC ? fmt(costoCC) : (p.centroCosto ? 'Sin costos' : 'Sin CC')}
                     </td>
-                    {/* Rentabilidad producción — editable siempre */}
-                    <td style={td}>
-                      <EditableNumber
-                        value={p.rentabilidadProduccion}
-                        enabled={true}
-                        placeholder="Ingresar %"
-                        onSave={v => updateProyecto(p.id, { rentabilidadProduccion: v })}
-                        format={v => `${v.toFixed(1).replace('.', ',')}%`}
-                        color={p.rentabilidadProduccion && p.rentabilidadProduccion >= 30 ? '#15803D' : '#B45309'}
-                      />
+                    {/* Rentabilidad P — (Venta Real − Costos) / Venta Real, solo si hay Venta Real ingresada */}
+                    <td style={{ ...td, color: rentabilidadP != null ? (rentabilidadP >= 30 ? '#15803D' : '#B45309') : '#D1D5DB', fontWeight: rentabilidadP != null ? 600 : 400, fontStyle: rentabilidadP != null ? 'normal' : 'italic', fontSize: rentabilidadP != null ? 13 : 12 }}>
+                      {rentabilidadP != null ? `${rentabilidadP.toFixed(1).replace('.', ',')}%` : '—'}
                     </td>
                     {/* Costo creatividad — calculado en tiempo real desde registros del Calendar */}
                     <td style={{ ...td, color: costoCreat ? '#374151' : '#D1D5DB', fontStyle: costoCreat ? 'normal' : 'italic', fontSize: 12 }}>

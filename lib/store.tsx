@@ -23,7 +23,6 @@ export type Proyecto = {
   centroCosto?: string
   montoRealVendido?: number
   costoCreatividad?: number
-  rentabilidadProduccion?: number
   diaTrafico?: string
   estadoTrafico?: string
   personasProduccion?: string[]
