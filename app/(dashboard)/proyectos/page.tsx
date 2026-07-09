@@ -55,14 +55,16 @@ function mesDeProyecto(p: Proyecto): string {
 }
 
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
-function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange }: {
+function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, onVentaRealChange }: {
   proyecto: Proyecto
   onClose: () => void
   onEstadoChange: (id: string, estado: Proyecto['estadoComercial']) => void
   onCentroCostoChange: (id: string, cc: string) => void
+  onVentaRealChange: (id: string, monto: number) => void
 }) {
   const estadoOpts: Proyecto['estadoComercial'][] = ['En propuesta', 'En negociación', 'Vendido', 'Perdido']
   const [cc, setCc] = useState(proyecto.centroCosto ?? '')
+  const [venta, setVenta] = useState(proyecto.montoRealVendido ? String(proyecto.montoRealVendido) : '')
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
@@ -119,6 +121,31 @@ function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange }
                 )}
               </div>
               <p style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>Ingresa el número de 4 dígitos asignado en Gespro.</p>
+            </div>
+          )}
+
+          {/* Venta Real — solo visible cuando está Vendido */}
+          {proyecto.estadoComercial === 'Vendido' && (
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 16px' }}>
+              <div className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Venta Real</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={venta ? Number(venta).toLocaleString('es-CO') : ''}
+                  onChange={e => { const v = e.target.value.replace(/\./g, '').replace(/\D/g, ''); setVenta(v) }}
+                  placeholder="Valor total vendido"
+                  style={{ height: 36, width: 180, padding: '0 10px', border: '1px solid #BBF7D0', borderRadius: 7, fontSize: 14, fontWeight: 600, color: '#065F46', outline: 'none' }}
+                />
+                <button
+                  onClick={() => { const n = Number(venta); if (n > 0) onVentaRealChange(proyecto.id, n) }}
+                  disabled={!venta || Number(venta) === 0}
+                  style={{ height: 36, padding: '0 14px', background: venta && Number(venta) > 0 ? '#059669' : '#D1FAE5', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: venta && Number(venta) > 0 ? '#fff' : '#6EE7B7', cursor: venta && Number(venta) > 0 ? 'pointer' : 'not-allowed' }}>
+                  Guardar
+                </button>
+              </div>
+              {proyecto.montoRealVendido && (
+                <p style={{ fontSize: 12, color: '#065F46', fontWeight: 600, marginTop: 6 }}>Actual: {formatCOP(proyecto.montoRealVendido)}</p>
+              )}
+              <p style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>Ingresa el valor real por el que se cerró la venta.</p>
             </div>
           )}
 
@@ -225,6 +252,7 @@ export default function ProyectosPage() {
           onClose={() => setDetalle(null)}
           onEstadoChange={(id, est) => updateProyecto(id, { estadoComercial: est })}
           onCentroCostoChange={(id, cc) => updateProyecto(id, { centroCosto: cc })}
+          onVentaRealChange={(id, monto) => updateProyecto(id, { montoRealVendido: monto })}
         />
       )}
 
