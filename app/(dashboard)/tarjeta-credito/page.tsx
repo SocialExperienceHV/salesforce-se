@@ -499,6 +499,33 @@ export default function TarjetaCredito() {
     setShowModal(false)
   }
 
+  function handleDescargarExcel() {
+    const rows = docsFiltrados.flatMap(doc => {
+      const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
+      return doc.items
+        .filter(item =>
+          (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
+          (filtroEstado==='Todos'||item.status===filtroEstado) &&
+          (filtroGespro==='Todos'||(item.gespro??'No Cargado')===filtroGespro)
+        )
+        .map(item => ({
+          'Tarjeta': `•••• ${doc.ultimos4}${tarjeta?.nombre?` — ${tarjeta.nombre}`:''}`,
+          'Fecha': item.fechaItem || doc.fecha,
+          'Item': item.item ?? '',
+          'Responsable': item.responsable,
+          'Centro Costos': item.centroCosto,
+          'Descripción': item.descripcion ?? '',
+          'Valor': item.monto,
+          'Gespro': item.gespro ?? 'No Cargado',
+          'Estado': item.status,
+        }))
+    })
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Gastos TC')
+    XLSX.writeFile(wb, `Tarjeta_Credito_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
   // Estilos tabla
   const thT: React.CSSProperties = { padding:'10px 14px', fontSize:11, fontWeight:700, color:'#6B7280', textAlign:'left', whiteSpace:'nowrap', borderBottom:'2px solid #E5E7EB', background:'#F9FAFB', textTransform:'uppercase', letterSpacing:'0.04em' }
   const tdT: React.CSSProperties = { padding:'12px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #F3F4F6', verticalAlign:'middle' }
@@ -513,10 +540,16 @@ export default function TarjetaCredito() {
             <h1 style={{ fontSize:22, fontWeight:800, color:'#111827', margin:0 }}>Tarjeta Crédito</h1>
             <p style={{ fontSize:13, color:'#9CA3AF', margin:'3px 0 0' }}>Registro y control de gastos con tarjetas corporativas.</p>
           </div>
-          <button onClick={()=>setShowModal(true)}
-            style={{ display:'flex', alignItems:'center', gap:7, height:36, padding:'0 16px', background:'#111827', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <PlusCircle style={{width:15,height:15}}/> Nuevo documento
-          </button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={handleDescargarExcel}
+              style={{ display:'flex', alignItems:'center', gap:7, height:36, padding:'0 16px', background:'#fff', color:'#374151', border:'1px solid #E5E7EB', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <Download style={{width:15,height:15}}/> Descargar Excel
+            </button>
+            <button onClick={()=>setShowModal(true)}
+              style={{ display:'flex', alignItems:'center', gap:7, height:36, padding:'0 16px', background:'#111827', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <PlusCircle style={{width:15,height:15}}/> Nuevo documento
+            </button>
+          </div>
         </div>
 
         {tarjetasActivas.length===0&&(
