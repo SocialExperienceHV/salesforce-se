@@ -2,16 +2,17 @@
 
 import { useStore } from '@/lib/store'
 import type { DocumentoTC, ItemTC } from '@/lib/store'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import {
-  CreditCard, PlusCircle, X, Download, Search,
-  CheckCircle, Clock, Trash2, Plus, Flag,
+  CreditCard, PlusCircle, X, Download,
+  CheckCircle, Clock, Trash2, Plus, Flag, Upload,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 const fmt = (n: number) => '$ ' + Math.round(n).toLocaleString('es-CO')
 const today = () => new Date().toISOString().slice(0, 10)
 const newItemId = () => `i${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '' })
+const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '', item: '', fechaItem: '' })
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const labelMes = (ym: string) => { const [y,m] = ym.split('-'); return `${MESES_ES[parseInt(m,10)-1]} ${y}` }
 
@@ -114,6 +115,8 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
         <table style={{ width:'100%', borderCollapse:'collapse' }}>
           <thead>
             <tr>
+              <th style={thS}>Fecha</th>
+              <th style={thS}>Item</th>
               <th style={thS}>Centro Costos</th>
               <th style={thS}>Monto</th>
               <th style={thS}>Responsable</th>
@@ -137,6 +140,16 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
             )}
             {doc.items.map((item,idx)=>(
               <tr key={item.id} style={{ background: idx%2===0?'#fff':'#FAFAFA' }}>
+                <td style={{ padding:'6px 8px', verticalAlign:'top', minWidth:90 }}>
+                  <input value={item.fechaItem??''}
+                    onChange={e=>updateItem(item.id,{fechaItem:e.target.value})}
+                    placeholder="yyyy-mm-dd" style={{ ...inp, fontSize:11 }} disabled={doc.finalizado} />
+                </td>
+                <td style={{ padding:'6px 8px', verticalAlign:'top', minWidth:140 }}>
+                  <input value={item.item??''}
+                    onChange={e=>updateItem(item.id,{item:e.target.value})}
+                    placeholder="Nombre gasto..." style={inp} disabled={doc.finalizado} />
+                </td>
                 <td style={{ padding:'6px 8px', verticalAlign:'top', minWidth:100 }}>
                   <input value={item.centroCosto}
                     onChange={e=>{updateItem(item.id,{centroCosto:e.target.value});setErrorFinalizar(null)}}
@@ -248,25 +261,97 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
 }
 
 // ─── Modal nuevo documento ────────────────────────────────────────────────────
-function NuevoDocModal({ tarjetasActivas, onConfirm, onClose }: {
+function NuevoDocModal({ tarjetasActivas, onConfirm, onConfirmExcel, onClose }: {
   tarjetasActivas: { id:string; ultimos4:string; nombre?:string }[]
   onConfirm: (tarjetaId:string, ultimos4:string, fecha:string) => void
+  onConfirmExcel: (tarjetaId:string, ultimos4:string, fecha:string, items:ItemTC[]) => void
   onClose: () => void
 }) {
   const [tarjetaId, setTarjetaId] = useState(tarjetasActivas[0]?.id??'')
   const [fecha, setFecha] = useState(today())
+  const [modo, setModo] = useState<'manual'|'excel'>('manual')
+  const [excelError, setExcelError] = useState('')
+  const [excelRows, setExcelRows] = useState<ItemTC[]>([])
+  const [excelFileName, setExcelFileName] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
   const inp: React.CSSProperties = { width:'100%', height:38, border:'1px solid #E5E7EB', borderRadius:8, padding:'0 10px', fontSize:13, color:'#111827', outline:'none', boxSizing:'border-box' }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if(!file) return
+    setExcelError(''); setExcelRows([])
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type:'array', cellDates:true })
+        const sheetName = wb.SheetNames[0]
+        const ws = wb.Sheets[sheetName]
+        const rows: Record<string,unknown>[] = XLSX.utils.sheet_to_json(ws, { defval:'' })
+        const items: ItemTC[] = rows.map(r => {
+          const fechaRaw = r['Fecha'] ?? r['fecha'] ?? ''
+          let fechaStr = ''
+          if(fechaRaw instanceof Date) {
+            fechaStr = fechaRaw.toISOString().slice(0,10)
+          } else if(typeof fechaRaw === 'string') {
+            fechaStr = fechaRaw.slice(0,10)
+          } else if(typeof fechaRaw === 'number') {
+            const d = XLSX.SSF.parse_date_code(fechaRaw)
+            fechaStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
+          }
+          const monto = Number(r['Valor'] ?? r['valor'] ?? r['Monto'] ?? r['monto'] ?? 0)
+          return {
+            id: newItemId(),
+            fechaItem: fechaStr,
+            item: String(r['Item'] ?? r['item'] ?? r['Concepto'] ?? '').trim(),
+            monto,
+            responsable: String(r['Responsable'] ?? r['responsable'] ?? '').trim(),
+            centroCosto: '',
+            status: 'Pendiente' as const,
+            descripcion: '',
+          }
+        }).filter(i => i.monto > 0)
+        if(items.length === 0) { setExcelError('No se encontraron filas válidas con Fecha, Item, Valor y Responsable.'); return }
+        // Fecha del documento = la más reciente del archivo
+        const fechas = items.map(i=>i.fechaItem??'').filter(Boolean).sort()
+        setFecha(fechas[fechas.length-1] || today())
+        setExcelRows(items)
+        setExcelFileName(file.name)
+      } catch {
+        setExcelError('Error leyendo el archivo. Verifica que sea un .xlsx válido.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
   function handleConfirm() {
     const t = tarjetasActivas.find(t=>t.id===tarjetaId); if(!t||!fecha) return
-    onConfirm(tarjetaId, t.ultimos4, fecha)
+    if(modo==='excel' && excelRows.length>0) {
+      onConfirmExcel(tarjetaId, t.ultimos4, fecha, excelRows)
+    } else {
+      onConfirm(tarjetaId, t.ultimos4, fecha)
+    }
   }
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-      <div style={{ background:'#fff', borderRadius:16, padding:'28px', width:380, boxShadow:'0 20px 60px rgba(0,0,0,0.15)' }}>
+      <div style={{ background:'#fff', borderRadius:16, padding:'28px', width:420, boxShadow:'0 20px 60px rgba(0,0,0,0.15)' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
           <h3 style={{ fontSize:16, fontWeight:700, color:'#111827', margin:0 }}>Nuevo documento TC</h3>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF' }}><X style={{width:18,height:18}}/></button>
         </div>
+
+        {/* Toggle modo */}
+        <div style={{ display:'flex', gap:6, marginBottom:18, background:'#F3F4F6', borderRadius:9, padding:4 }}>
+          {(['manual','excel'] as const).map(m=>(
+            <button key={m} onClick={()=>setModo(m)}
+              style={{ flex:1, height:32, border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer',
+                background:modo===m?'#fff':'transparent', color:modo===m?'#111827':'#6B7280',
+                boxShadow:modo===m?'0 1px 4px rgba(0,0,0,0.1)':'none', transition:'all 0.15s' }}>
+              {m==='manual'?'Manual':'Importar Excel'}
+            </button>
+          ))}
+        </div>
+
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div>
             <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Tarjeta</label>
@@ -274,14 +359,45 @@ function NuevoDocModal({ tarjetasActivas, onConfirm, onClose }: {
               {tarjetasActivas.map(t=><option key={t.id} value={t.id}>•••• {t.ultimos4}{t.nombre?` — ${t.nombre}`:''}</option>)}
             </select>
           </div>
-          <div>
-            <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Fecha</label>
-            <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={inp} />
-          </div>
+
+          {modo==='excel' ? (
+            <>
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Archivo Excel</label>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} style={{ display:'none' }} />
+                <button onClick={()=>fileRef.current?.click()}
+                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', height:38, border:'1.5px dashed #D1D5DB', borderRadius:8,
+                    background:'#FAFAFA', color:'#374151', fontSize:13, fontWeight:500, cursor:'pointer', justifyContent:'center' }}>
+                  <Upload style={{width:15,height:15,color:'#6B7280'}}/>
+                  {excelFileName || 'Seleccionar archivo .xlsx'}
+                </button>
+                {excelError && <p style={{ fontSize:11, color:'#DC2626', margin:'4px 0 0', fontWeight:600 }}>{excelError}</p>}
+                {excelRows.length>0 && (
+                  <p style={{ fontSize:11, color:'#059669', margin:'4px 0 0', fontWeight:600 }}>
+                    ✓ {excelRows.length} gastos listos para importar
+                  </p>
+                )}
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Fecha del documento</label>
+                <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={inp} />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Fecha</label>
+              <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={inp} />
+            </div>
+          )}
         </div>
+
         <div style={{ display:'flex', gap:8, marginTop:22 }}>
           <button onClick={onClose} style={{ flex:1, height:38, border:'1px solid #E5E7EB', borderRadius:8, background:'#fff', color:'#374151', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancelar</button>
-          <button onClick={handleConfirm} style={{ flex:1, height:38, border:'none', borderRadius:8, background:'#111827', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>Crear</button>
+          <button onClick={handleConfirm}
+            disabled={modo==='excel'&&excelRows.length===0}
+            style={{ flex:1, height:38, border:'none', borderRadius:8, background: modo==='excel'&&excelRows.length===0?'#9CA3AF':'#111827', color:'#fff', fontSize:13, fontWeight:600, cursor: modo==='excel'&&excelRows.length===0?'not-allowed':'pointer' }}>
+            {modo==='excel'?`Importar ${excelRows.length>0?excelRows.length+' gastos':''}`.trim():'Crear'}
+          </button>
         </div>
       </div>
     </div>
@@ -345,6 +461,10 @@ export default function TarjetaCredito() {
 
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string) {
     const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
+    setSelectedId(id); setPanelFull(true); setShowModal(false)
+  }
+  function handleNuevoExcel(tarjetaId:string, ultimos4:string, fecha:string, items:ItemTC[]) {
+    const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items, finalizado:false })
     setSelectedId(id); setPanelFull(true); setShowModal(false)
   }
   function handleDelete() { if(!selectedId) return; deleteDocumentoTC(selectedId); setSelectedId(null); setPanelFull(false) }
@@ -524,7 +644,7 @@ export default function TarjetaCredito() {
       </div>
 
       {showModal&&(
-        <NuevoDocModal tarjetasActivas={tarjetasActivas} onConfirm={handleNuevo} onClose={()=>setShowModal(false)}/>
+        <NuevoDocModal tarjetasActivas={tarjetasActivas} onConfirm={handleNuevo} onConfirmExcel={handleNuevoExcel} onClose={()=>setShowModal(false)}/>
       )}
     </div>
   )

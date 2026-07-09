@@ -147,6 +147,8 @@ export type ItemTC = {
   responsable: string
   status: 'Entregado' | 'Pendiente'
   descripcion?: string
+  item?: string
+  fechaItem?: string
 }
 
 export type DocumentoTC = {
