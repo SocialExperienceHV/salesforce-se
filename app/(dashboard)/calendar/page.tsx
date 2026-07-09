@@ -534,8 +534,18 @@ export default function CalendarPage() {
   const [cursor, setCursor]       = useState(new Date())
   const [showPanel, setShowPanel] = useState(false)
   const [editing, setEditing]     = useState<RegistroTiempo | null>(null)
-  const { proyectos, registros, addRegistro, updateRegistro, deleteRegistro, currentUser } = useStore()
+  const { proyectos, registros, addRegistro, updateRegistro, deleteRegistro, currentUser, personasStore } = useStore()
   const CURRENT_USER = currentUser!
+  const [filtroPersona, setFiltroPersona] = useState('Todos')
+
+  const empleados = useMemo(() => {
+    const nombres = Array.from(new Set(registros.map(r => r.persona))).sort()
+    return ['Todos', ...nombres]
+  }, [registros])
+
+  const registrosFiltrados = useMemo(() =>
+    filtroPersona === 'Todos' ? registros : registros.filter(r => r.persona === filtroPersona)
+  , [registros, filtroPersona])
 
   const storeProyectos = proyectos.map(p => p.nombre)
 
@@ -664,6 +674,13 @@ export default function CalendarPage() {
               </button>
             ))}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', whiteSpace: 'nowrap' }}>Empleado:</span>
+            <select value={filtroPersona} onChange={e => setFiltroPersona(e.target.value)}
+              style={{ height: 32, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 12, color: '#374151', background: '#fff', outline: 'none', cursor: 'pointer' }}>
+              {empleados.map(e => <option key={e}>{e}</option>)}
+            </select>
+          </div>
           <button onClick={() => setShowPanel(true)}
             style={{ height: 34, padding: '0 14px', background: '#1A56DB', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus style={{ width: 14, height: 14 }} /> Registrar tiempo
@@ -671,9 +688,9 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar view */}
-        {view === 'Semana' && <WeekGrid monday={weekStart(cursor)} today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
-        {view === 'Día'    && <DayGrid  day={cursor}               today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
-        {view === 'Mes'    && <MonthGrid month={cursor.getMonth()} year={cursor.getFullYear()} today={today} registros={registros} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
+        {view === 'Semana' && <WeekGrid monday={weekStart(cursor)} today={today} registros={registrosFiltrados} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
+        {view === 'Día'    && <DayGrid  day={cursor}               today={today} registros={registrosFiltrados} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
+        {view === 'Mes'    && <MonthGrid month={cursor.getMonth()} year={cursor.getFullYear()} today={today} registros={registrosFiltrados} onEdit={setEditing} currentUserNombre={CURRENT_USER.nombre} />}
       </div>
 
       {showPanel && (
