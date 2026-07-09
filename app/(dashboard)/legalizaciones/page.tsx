@@ -595,7 +595,7 @@ export default function LegalizacionesPage() {
   const [filtroPeriodo, setFiltroPeriodo] = useState('Todos')
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [filtroTipo, setFiltroTipo] = useState('Todos')
-  const [filtroResponsable, setFiltroResponsable] = useState(currentUser?.nombre ?? 'Todos')
+  const [filtroResponsable, setFiltroResponsable] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
 
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
