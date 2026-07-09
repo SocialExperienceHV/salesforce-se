@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Folder, DollarSign, ShoppingCart, XCircle, Target, ChevronLeft, ChevronRight, Search, MoreHorizontal, X, TrendingUp, Pencil, Check, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { Proyecto } from '@/lib/store'
+import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -229,7 +230,10 @@ function DetallePanel({ p, clientes, onClose }: { p: Proyecto; clientes: { nombr
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function SeguimientoPage() {
-  const { proyectos, clientes: clientesStore, updateProyecto, registros, personasStore } = useStore()
+  const { proyectos, clientes: clientesStore, updateProyecto, registros, personasStore, legalizaciones } = useStore()
+
+  const [ordenesGespro, setOrdenesGespro] = useState<OrdenGespro[]>([])
+  useEffect(() => { getOrdenesGespro().then(setOrdenesGespro).catch(() => setOrdenesGespro([])) }, [])
 
   // Costo creatividad por proyecto — Opción B: costoHora dinámico por persona-mes
   // costoHora = costoMensual / totalHorasRegistradasEnEseMes
@@ -267,6 +271,24 @@ export default function SeguimientoPage() {
 
     return map
   }, [registros, personasStore])
+
+  // Costos por centro de costo — suma órdenes de Gespro 2.0 (compras/tarjeta) +
+  // gastos de legalizaciones (Calendar 2.0), igual que "Total de costos" en Gespro.
+  const costosPorCentroCosto = useMemo(() => {
+    const map: Record<string, number> = {}
+    ordenesGespro.forEach(o => {
+      if (!o.centroCosto) return
+      map[o.centroCosto] = (map[o.centroCosto] ?? 0) + o.valor
+    })
+    legalizaciones.forEach(l => {
+      l.gastos?.forEach(g => {
+        const cc = g.centroCosto || l.centroCosto
+        if (!cc) return
+        map[cc] = (map[cc] ?? 0) + g.total
+      })
+    })
+    return map
+  }, [ordenesGespro, legalizaciones])
 
   const today = new Date()
   const [periodo, setPeriodo] = useState('Año')
@@ -441,7 +463,7 @@ export default function SeguimientoPage() {
       {/* Table */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1300 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1450 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
@@ -465,7 +487,7 @@ export default function SeguimientoPage() {
                     </span>
                   </th>
                 ))}
-                {['Centro costos', 'Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
+                {['Centro costos', 'Costos', 'Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -473,7 +495,7 @@ export default function SeguimientoPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={12} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay proyectos en este período con los filtros seleccionados.
                   </td>
                 </tr>
@@ -532,6 +554,15 @@ export default function SeguimientoPage() {
                     <td style={td}>
                       <CentroCostoCell value={p.centroCosto} onSave={v => updateProyecto(p.id, { centroCosto: v })} />
                     </td>
+                    {/* Costos — suma de Gespro 2.0 (órdenes) + legalizaciones, por centro de costo */}
+                    {(() => {
+                      const costo = p.centroCosto ? costosPorCentroCosto[p.centroCosto] : undefined
+                      return (
+                        <td style={{ ...td, color: costo ? '#B91C1C' : '#D1D5DB', fontWeight: costo ? 600 : 400, fontStyle: costo ? 'normal' : 'italic', fontSize: costo ? 13 : 12 }}>
+                          {costo ? fmt(costo) : (p.centroCosto ? 'Sin costos' : 'Sin CC')}
+                        </td>
+                      )
+                    })()}
                     {/* Monto real vendido — editable solo si Vendido */}
                     <td style={td}>
                       <EditableNumber
