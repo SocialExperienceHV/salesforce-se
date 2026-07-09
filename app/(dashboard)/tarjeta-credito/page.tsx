@@ -428,8 +428,7 @@ export default function TarjetaCredito() {
   const { tarjetasCorp, documentosTC, addDocumentoTC, updateDocumentoTC, deleteDocumentoTC, personasStore, proyectos } = useStore()
 
   const tarjetasActivas = useMemo(()=>tarjetasCorp.filter(t=>t.activa),[tarjetasCorp])
-  const [selectedId, setSelectedId] = useState<string|null>(null)
-  const [panelFull, setPanelFull] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string|null>(null)
   const [showModal, setShowModal] = useState(false)
   const [filtroTarjeta, setFiltroTarjeta] = useState('Todas')
   const [filtroResponsable, setFiltroResponsable] = useState('Todos')
@@ -476,28 +475,21 @@ export default function TarjetaCredito() {
     return mapa
   },[allItems])
 
-  const selectedDoc = useMemo(()=>documentosTC.find(d=>d.id===selectedId)??null,[documentosTC,selectedId])
-
-  function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') {
+  function patchItem(docId: string, itemId: string, ch: Partial<ItemTC>) {
     const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
-    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,status}:i) })
+    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,...ch}:i) })
   }
-  function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') {
-    const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
-    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,gespro}:i) })
-  }
+  function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') { patchItem(docId, itemId, {status}) }
+  function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') { patchItem(docId, itemId, {gespro}) }
 
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string) {
-    const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
-    setSelectedId(id); setPanelFull(true); setShowModal(false)
+    addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
+    setShowModal(false)
   }
   function handleNuevoExcel(tarjetaId:string, ultimos4:string, fecha:string, items:ItemTC[]) {
-    const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items, finalizado:false })
-    setSelectedId(id); setPanelFull(true); setShowModal(false)
+    addDocumentoTC({ tarjetaId, ultimos4, fecha, items, finalizado:false })
+    setShowModal(false)
   }
-  function handleDelete() { if(!selectedId) return; deleteDocumentoTC(selectedId); setSelectedId(null); setPanelFull(false) }
-  function handleSelectDoc(id: string) { setSelectedId(id); setPanelFull(false) }
-  function handleClosePanel() { setSelectedId(null); setPanelFull(false) }
 
   // Estilos tabla
   const thT: React.CSSProperties = { padding:'10px 14px', fontSize:11, fontWeight:700, color:'#6B7280', textAlign:'left', whiteSpace:'nowrap', borderBottom:'2px solid #E5E7EB', background:'#F9FAFB', textTransform:'uppercase', letterSpacing:'0.04em' }
@@ -572,129 +564,156 @@ export default function TarjetaCredito() {
         </div>
       </div>
 
-      {/* Cuerpo: tabla + panel */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
-        {/* Tabla — oculta en modo panel completo */}
-        <div style={{ flex:1, overflowY:'auto', minWidth:0, display: panelFull ? 'none' : 'block' }}>
-          {allItems.length===0?(
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 24px', gap:12 }}>
-              <div style={{ width:52, height:52, borderRadius:'50%', background:'#FEF3C7', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <CreditCard style={{width:26,height:26,color:'#D97706'}}/>
-              </div>
-              <p style={{ fontSize:14, fontWeight:600, color:'#111827', margin:0 }}>No hay gastos</p>
-              <p style={{ fontSize:13, color:'#9CA3AF', margin:0 }}>Crea un nuevo documento para empezar.</p>
+      {/* Cuerpo: tabla */}
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {allItems.length===0?(
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 24px', gap:12 }}>
+            <div style={{ width:52, height:52, borderRadius:'50%', background:'#FEF3C7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <CreditCard style={{width:26,height:26,color:'#D97706'}}/>
             </div>
-          ):(
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={thT}>Tarjeta</th>
-                  <th style={thT}>Fecha</th>
-                  <th style={thT}>Item</th>
-                  <th style={thT}>Responsable</th>
-                  <th style={thT}>Centro Costos</th>
-                  <th style={thT}>Descripción</th>
-                  <th style={{ ...thT, textAlign:'right' }}>Valor</th>
-                  <th style={thT}>Gespro</th>
-                  <th style={thT}>Estado</th>
-                  <th style={thT}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docsFiltrados.flatMap(doc=>{
-                  const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
-                  const isSelected = doc.id===selectedId
-                  return doc.items
-                    .filter(item => filtroResponsable==='Todos' || item.responsable===filtroResponsable)
-                    .map((item, idx)=>(
-                    <tr key={item.id}
-                      style={{ background: isSelected ? '#F0F9FF' : idx%2===0?'#fff':'#FAFAFA', cursor:'pointer' }}
-                      onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
-                      onMouseEnter={ev=>{ if(!isSelected)(ev.currentTarget as HTMLElement).style.background='#F3F4F6' }}
-                      onMouseLeave={ev=>{ (ev.currentTarget as HTMLElement).style.background=isSelected?'#F0F9FF':idx%2===0?'#fff':'#FAFAFA' }}>
-                      <td style={tdT}>
-                        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                          <div style={{ width:26, height:26, borderRadius:6, background: doc.finalizado?'#059669':'#111827', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <CreditCard style={{width:12,height:12,color:'#fff'}}/>
+            <p style={{ fontSize:14, fontWeight:600, color:'#111827', margin:0 }}>No hay gastos</p>
+            <p style={{ fontSize:13, color:'#9CA3AF', margin:0 }}>Crea un nuevo documento para empezar.</p>
+          </div>
+        ):(
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thT}>Tarjeta</th>
+                <th style={thT}>Fecha</th>
+                <th style={thT}>Item</th>
+                <th style={thT}>Responsable</th>
+                <th style={thT}>Centro Costos</th>
+                <th style={thT}>Descripción</th>
+                <th style={{ ...thT, textAlign:'right' }}>Valor</th>
+                <th style={thT}>Gespro</th>
+                <th style={thT}>Estado</th>
+                <th style={thT}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {docsFiltrados.flatMap(doc=>{
+                const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
+                return doc.items
+                  .filter(item => filtroResponsable==='Todos' || item.responsable===filtroResponsable)
+                  .flatMap((item, idx)=>{
+                    const isEditing = editingItemId===item.id
+                    const inp: React.CSSProperties = { height:30, border:'1px solid #D1D5DB', borderRadius:6, padding:'0 8px', fontSize:12, color:'#111827', outline:'none', boxSizing:'border-box', width:'100%' }
+                    const rows: React.ReactNode[] = [
+                      <tr key={item.id} style={{ background: isEditing?'#EFF6FF':idx%2===0?'#fff':'#FAFAFA' }}>
+                        <td style={tdT}>
+                          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                            <div style={{ width:26, height:26, borderRadius:6, background: doc.finalizado?'#059669':'#111827', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <CreditCard style={{width:12,height:12,color:'#fff'}}/>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:12, fontWeight:700, color:'#111827' }}>•••• {doc.ultimos4}</div>
+                              {tarjeta?.nombre&&<div style={{ fontSize:10, color:'#9CA3AF' }}>{tarjeta.nombre}</div>}
+                            </div>
                           </div>
-                          <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:'#111827' }}>•••• {doc.ultimos4}</div>
-                            {tarjeta?.nombre&&<div style={{ fontSize:10, color:'#9CA3AF' }}>{tarjeta.nombre}</div>}
+                        </td>
+                        <td style={{ ...tdT, color:'#6B7280', whiteSpace:'nowrap', fontSize:12 }}>{item.fechaItem||doc.fecha}</td>
+                        <td style={{ ...tdT, maxWidth:200 }}>
+                          <span style={{ fontSize:12, color:'#111827', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.item||'—'}</span>
+                        </td>
+                        <td style={{ ...tdT, fontSize:12 }}>{item.responsable||<span style={{color:'#9CA3AF'}}>—</span>}</td>
+                        <td style={{ ...tdT, fontSize:12 }}>
+                          {item.centroCosto
+                            ? <span style={{ background:'#EFF6FF', color:'#1D4ED8', padding:'2px 7px', borderRadius:5, fontSize:11, fontWeight:600 }}>{item.centroCosto}</span>
+                            : <span style={{ color:'#F59E0B', fontSize:11, fontWeight:600 }}>Pendiente</span>}
+                        </td>
+                        <td style={{ ...tdT, fontSize:12, color:'#6B7280', maxWidth:160 }}>
+                          <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.descripcion||'—'}</span>
+                        </td>
+                        <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
+                        <td style={tdT} onClick={e=>e.stopPropagation()}>
+                          <div style={{ display:'flex', gap:4 }}>
+                            {(['Cargado','No Cargado'] as const).map(g=>{
+                              const active=(item.gespro??'No Cargado')===g
+                              return (
+                                <button key={g} onClick={()=>updateGespro(doc.id,item.id,g)}
+                                  style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                                    border: active?`1.5px solid ${g==='Cargado'?'#10B981':'#D1D5DB'}`:'1.5px solid #E5E7EB',
+                                    background: active?(g==='Cargado'?'#D1FAE5':'#F3F4F6'):'#fff',
+                                    color: active?(g==='Cargado'?'#065F46':'#6B7280'):'#D1D5DB' }}>
+                                  {g}
+                                </button>
+                              )
+                            })}
                           </div>
-                        </div>
-                      </td>
-                      <td style={{ ...tdT, color:'#6B7280', whiteSpace:'nowrap', fontSize:12 }}>{item.fechaItem||doc.fecha}</td>
-                      <td style={{ ...tdT, maxWidth:200 }}>
-                        <span style={{ fontSize:12, color:'#111827', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.item||'—'}</span>
-                      </td>
-                      <td style={{ ...tdT, fontSize:12 }}>{item.responsable||<span style={{color:'#9CA3AF'}}>—</span>}</td>
-                      <td style={{ ...tdT, fontSize:12 }}>
-                        {item.centroCosto
-                          ? <span style={{ background:'#EFF6FF', color:'#1D4ED8', padding:'2px 7px', borderRadius:5, fontSize:11, fontWeight:600 }}>{item.centroCosto}</span>
-                          : <span style={{ color:'#F59E0B', fontSize:11, fontWeight:600 }}>Pendiente</span>}
-                      </td>
-                      <td style={{ ...tdT, fontSize:12, color:'#6B7280', maxWidth:160 }}>
-                        <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.descripcion||'—'}</span>
-                      </td>
-                      <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
-                      <td style={tdT} onClick={e=>e.stopPropagation()}>
-                        <div style={{ display:'flex', gap:4 }}>
-                          {(['Cargado','No Cargado'] as const).map(g=>{
-                            const active=(item.gespro??'No Cargado')===g
-                            return (
-                              <button key={g} onClick={()=>updateGespro(doc.id,item.id,g)}
-                                style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
-                                  border: active?`1.5px solid ${g==='Cargado'?'#10B981':'#D1D5DB'}`:'1.5px solid #E5E7EB',
-                                  background: active?(g==='Cargado'?'#D1FAE5':'#F3F4F6'):'#fff',
-                                  color: active?(g==='Cargado'?'#065F46':'#6B7280'):'#D1D5DB' }}>
-                                {g}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </td>
-                      <td style={tdT} onClick={e=>e.stopPropagation()}>
-                        <div style={{ display:'flex', gap:4 }}>
-                          {(['Pendiente','Entregado'] as const).map(s=>{
-                            const active = item.status===s
-                            return (
-                              <button key={s} onClick={()=>updateItemStatus(doc.id,item.id,s)}
-                                style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
-                                  border: active ? `1.5px solid ${s==='Entregado'?'#10B981':'#F59E0B'}` : '1.5px solid #E5E7EB',
-                                  background: active ? (s==='Entregado'?'#D1FAE5':'#FEF3C7') : '#fff',
-                                  color: active ? (s==='Entregado'?'#065F46':'#92400E') : '#D1D5DB' }}>
-                                {s==='Entregado'?'✓ Entregado':'Pendiente'}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </td>
-                      <td style={tdT} onClick={e=>e.stopPropagation()}>
-                        <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
-                          style={{ height:28, padding:'0 10px', border:'1px solid #E5E7EB', borderRadius:7, background: isSelected?'#111827':'#fff', color: isSelected?'#fff':'#374151', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                          {isSelected?'Cerrar':'Editar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Panel detalle lateral */}
-        {selectedDoc&&(
-          <DetallePanel
-            doc={selectedDoc}
-            tarjetaNombre={tarjetasCorp.find(t=>t.id===selectedDoc.tarjetaId)?.nombre}
-            responsablesOpts={responsablesOpts}
-            ccValidos={ccValidos}
-            fullWidth={panelFull}
-            onClose={handleClosePanel}
-            onUpdate={ch=>updateDocumentoTC(selectedDoc.id,ch)}
-            onDelete={handleDelete}
-          />
+                        </td>
+                        <td style={tdT} onClick={e=>e.stopPropagation()}>
+                          <div style={{ display:'flex', gap:4 }}>
+                            {(['Pendiente','Entregado'] as const).map(s=>{
+                              const active = item.status===s
+                              return (
+                                <button key={s} onClick={()=>updateItemStatus(doc.id,item.id,s)}
+                                  style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                                    border: active?`1.5px solid ${s==='Entregado'?'#10B981':'#F59E0B'}`:'1.5px solid #E5E7EB',
+                                    background: active?(s==='Entregado'?'#D1FAE5':'#FEF3C7'):'#fff',
+                                    color: active?(s==='Entregado'?'#065F46':'#92400E'):'#D1D5DB' }}>
+                                  {s==='Entregado'?'✓ Entregado':'Pendiente'}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </td>
+                        <td style={tdT}>
+                          <button onClick={()=>setEditingItemId(isEditing?null:item.id)}
+                            style={{ height:28, padding:'0 10px', border:'1px solid #E5E7EB', borderRadius:7,
+                              background: isEditing?'#111827':'#fff', color: isEditing?'#fff':'#374151',
+                              fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                            {isEditing?'Cerrar':'Editar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ]
+                    if(isEditing) rows.push(
+                      <tr key={`${item.id}_edit`}>
+                        <td colSpan={10} style={{ padding:'12px 16px', background:'#F0F9FF', borderBottom:'2px solid #1A56DB' }}>
+                          <div style={{ display:'flex', gap:10, alignItems:'flex-end', flexWrap:'wrap' }}>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:90 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Fecha</label>
+                              <input value={item.fechaItem??''} onChange={e=>patchItem(doc.id,item.id,{fechaItem:e.target.value})} style={inp} type="date"/>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, flex:2, minWidth:140 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Item</label>
+                              <input value={item.item??''} onChange={e=>patchItem(doc.id,item.id,{item:e.target.value})} placeholder="Nombre gasto" style={inp}/>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:110 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Centro Costos</label>
+                              <input value={item.centroCosto} onChange={e=>patchItem(doc.id,item.id,{centroCosto:e.target.value})} placeholder="1042" style={inp}/>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:110 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Monto</label>
+                              <input type="text" inputMode="numeric"
+                                value={item.monto?item.monto.toLocaleString('es-CO'):''}
+                                onChange={e=>{const raw=e.target.value.replace(/\./g,'').replace(/[^\d]/g,'');patchItem(doc.id,item.id,{monto:raw?Number(raw):0})}}
+                                placeholder="0" style={{ ...inp, textAlign:'right' }}/>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:130 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Responsable</label>
+                              <select value={item.responsable} onChange={e=>patchItem(doc.id,item.id,{responsable:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
+                                <option value="">— Persona —</option>
+                                {responsablesOpts.map(r=><option key={r}>{r}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:4, flex:2, minWidth:140 }}>
+                              <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Descripción</label>
+                              <input value={item.descripcion??''} onChange={e=>patchItem(doc.id,item.id,{descripcion:e.target.value})} placeholder="Concepto..." style={inp}/>
+                            </div>
+                            <button onClick={()=>setEditingItemId(null)}
+                              style={{ height:30, padding:'0 14px', border:'none', borderRadius:6, background:'#111827', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0 }}>
+                              Guardar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                    return rows
+                  })
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
