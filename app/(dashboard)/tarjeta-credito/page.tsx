@@ -485,7 +485,12 @@ export default function TarjetaCredito() {
 
   function patchItem(docId: string, itemId: string, ch: Partial<ItemTC>) {
     const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
-    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,...ch}:i) })
+    updateDocumentoTC(docId, { items: doc.items.map(i=>{
+      if(i.id !== itemId) return i
+      const merged = {...i,...ch}
+      if(merged.centroCosto?.trim() && merged.descripcion?.trim()) merged.gespro = 'Cargado'
+      return merged
+    })})
   }
   function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') { patchItem(docId, itemId, {status}) }
   function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') { patchItem(docId, itemId, {gespro}) }
