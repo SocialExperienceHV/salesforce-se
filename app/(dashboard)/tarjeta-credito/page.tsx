@@ -13,6 +13,9 @@ const fmt = (n: number) => '$ ' + Math.round(n).toLocaleString('es-CO')
 const today = () => new Date().toISOString().slice(0, 10)
 const newItemId = () => `i${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '', item: '', fechaItem: '', gespro: 'No Cargado' })
+const gesproDe = (item: ItemTC): 'Cargado' | 'No Cargado' =>
+  item.centroCosto?.trim() && item.descripcion?.trim() ? 'Cargado' : (item.gespro ?? 'No Cargado')
+
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const labelMes = (ym: string) => { const [y,m] = ym.split('-'); return `${MESES_ES[parseInt(m,10)-1]} ${y}` }
 
@@ -184,7 +187,7 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
                 <td style={{ padding:'6px 8px', verticalAlign:'middle', minWidth:130 }}>
                   <div style={{ display:'flex', gap:4 }}>
                     {(['Cargado','No Cargado'] as const).map(g=>{
-                      const active = (item.gespro??'No Cargado')===g
+                      const active = gesproDe(item)===g
                       return (
                         <button key={g} onClick={()=>!doc.finalizado&&updateItem(item.id,{gespro:g})}
                           style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'4px 8px', borderRadius:6, fontSize:11, fontWeight:700,
@@ -463,13 +466,13 @@ export default function TarjetaCredito() {
     if(filtroMes!=='Todos'&&!d.fecha.startsWith(filtroMes)) return false
     if(filtroResponsable!=='Todos'&&!d.items.some(i=>i.responsable===filtroResponsable)) return false
     if(filtroEstado!=='Todos'&&!d.items.some(i=>i.status===filtroEstado)) return false
-    if(filtroGespro!=='Todos'&&!d.items.some(i=>(i.gespro??'No Cargado')===filtroGespro)) return false
+    if(filtroGespro!=='Todos'&&!d.items.some(i=>gesproDe(i)===filtroGespro)) return false
     return true
   }),[documentosTC,filtroTarjeta,filtroMes,filtroResponsable,filtroEstado,filtroGespro])
 
   const allItems = useMemo(()=>docsFiltrados.flatMap(d=>d.items)
     .filter(i=>filtroEstado==='Todos'||i.status===filtroEstado)
-    .filter(i=>filtroGespro==='Todos'||(i.gespro??'No Cargado')===filtroGespro)
+    .filter(i=>filtroGespro==='Todos'||gesproDe(i)===filtroGespro)
     .filter(i=>filtroResponsable==='Todos'||i.responsable===filtroResponsable)
   ,[docsFiltrados,filtroEstado,filtroGespro,filtroResponsable])
   const totalGlobal     = useMemo(()=>allItems.reduce((s,i)=>s+i.monto,0),[allItems])
@@ -511,7 +514,7 @@ export default function TarjetaCredito() {
         .filter(item =>
           (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
           (filtroEstado==='Todos'||item.status===filtroEstado) &&
-          (filtroGespro==='Todos'||(item.gespro??'No Cargado')===filtroGespro)
+          (filtroGespro==='Todos'||gesproDe(item)===filtroGespro)
         )
         .map(item => ({
           'Tarjeta': `•••• ${doc.ultimos4}${tarjeta?.nombre?` — ${tarjeta.nombre}`:''}`,
@@ -521,7 +524,7 @@ export default function TarjetaCredito() {
           'Centro Costos': item.centroCosto,
           'Descripción': item.descripcion ?? '',
           'Valor': item.monto,
-          'Gespro': item.gespro ?? 'No Cargado',
+          'Gespro': gesproDe(item),
           'Estado': item.status,
         }))
     })
@@ -645,7 +648,7 @@ export default function TarjetaCredito() {
                   .filter(item =>
                     (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
                     (filtroEstado==='Todos'||item.status===filtroEstado) &&
-                    (filtroGespro==='Todos'||(item.gespro??'No Cargado')===filtroGespro)
+                    (filtroGespro==='Todos'||gesproDe(item)===filtroGespro)
                   )
                   .flatMap((item, idx)=>{
                     const isEditing = editingItemId===item.id
@@ -680,7 +683,7 @@ export default function TarjetaCredito() {
                         <td style={tdT} onClick={e=>e.stopPropagation()}>
                           <div style={{ display:'flex', gap:4 }}>
                             {(['Cargado','No Cargado'] as const).map(g=>{
-                              const active=(item.gespro??'No Cargado')===g
+                              const active=gesproDe(item)===g
                               return (
                                 <button key={g} onClick={()=>updateGespro(doc.id,item.id,g)}
                                   style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
