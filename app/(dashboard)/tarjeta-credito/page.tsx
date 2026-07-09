@@ -14,7 +14,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 const newItemId = () => `i${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, responsable: '', status: 'Pendiente', descripcion: '', item: '', fechaItem: '', gespro: 'No Cargado' })
 const gesproDe = (item: ItemTC): 'Cargado' | 'No Cargado' =>
-  item.centroCosto?.trim() && item.descripcion?.trim() ? 'Cargado' : (item.gespro ?? 'No Cargado')
+  item.centroCosto?.trim() && item.descripcion?.trim() ? 'Cargado' : 'No Cargado'
 
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const labelMes = (ym: string) => { const [y,m] = ym.split('-'); return `${MESES_ES[parseInt(m,10)-1]} ${y}` }
