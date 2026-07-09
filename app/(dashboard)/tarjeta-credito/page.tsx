@@ -478,6 +478,11 @@ export default function TarjetaCredito() {
 
   const selectedDoc = useMemo(()=>documentosTC.find(d=>d.id===selectedId)??null,[documentosTC,selectedId])
 
+  function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') {
+    const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
+    updateDocumentoTC(docId, { items: doc.items.map(i=>i.id===itemId?{...i,status}:i) })
+  }
+
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string) {
     const id = addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
     setSelectedId(id); setPanelFull(true); setShowModal(false)
@@ -628,15 +633,37 @@ export default function TarjetaCredito() {
                         <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.descripcion||'—'}</span>
                       </td>
                       <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
-                      <td style={tdT}>
-                        {(item.gespro??'No Cargado')==='Cargado'
-                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>Cargado</span>
-                          : <span style={{ fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', padding:'3px 8px', borderRadius:20 }}>No Cargado</span>}
+                      <td style={tdT} onClick={e=>e.stopPropagation()}>
+                        <div style={{ display:'flex', gap:4 }}>
+                          {(['Cargado','No Cargado'] as const).map(g=>{
+                            const active=(item.gespro??'No Cargado')===g
+                            return (
+                              <button key={g} onClick={()=>updateGespro(doc.id,item.id,g)}
+                                style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                                  border: active?`1.5px solid ${g==='Cargado'?'#10B981':'#D1D5DB'}`:'1.5px solid #E5E7EB',
+                                  background: active?(g==='Cargado'?'#D1FAE5':'#F3F4F6'):'#fff',
+                                  color: active?(g==='Cargado'?'#065F46':'#6B7280'):'#D1D5DB' }}>
+                                {g}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </td>
-                      <td style={tdT}>
-                        {item.status==='Entregado'
-                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>✓ Entregado</span>
-                          : <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'3px 8px', borderRadius:20 }}>Pendiente</span>}
+                      <td style={tdT} onClick={e=>e.stopPropagation()}>
+                        <div style={{ display:'flex', gap:4 }}>
+                          {(['Pendiente','Entregado'] as const).map(s=>{
+                            const active = item.status===s
+                            return (
+                              <button key={s} onClick={()=>updateItemStatus(doc.id,item.id,s)}
+                                style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                                  border: active ? `1.5px solid ${s==='Entregado'?'#10B981':'#F59E0B'}` : '1.5px solid #E5E7EB',
+                                  background: active ? (s==='Entregado'?'#D1FAE5':'#FEF3C7') : '#fff',
+                                  color: active ? (s==='Entregado'?'#065F46':'#92400E') : '#D1D5DB' }}>
+                                {s==='Entregado'?'✓ Entregado':'Pendiente'}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </td>
                       <td style={tdT} onClick={e=>e.stopPropagation()}>
                         <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
