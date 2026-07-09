@@ -465,33 +465,37 @@ export default function SeguimientoPage() {
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
-                  { label: 'Cliente',              col: 'cliente' },
-                  { label: 'Proyecto',             col: 'nombre' },
-                  { label: 'KAM',                  col: 'ejecutivo' },
-                  { label: 'Estado',               col: 'estado' },
-                  { label: 'Monto estimado',       col: 'monto' },
-                ] as { label: string; col: string }[]).map(({ label, col }) => (
-                  <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                  { label: 'Centro costos' },
+                  { label: 'Proyecto',          col: 'nombre' },
+                  { label: 'Cliente',           col: 'cliente' },
+                  { label: 'KAM',               col: 'ejecutivo' },
+                  { label: 'Estado',            col: 'estado' },
+                  { label: 'Monto estimado',    col: 'monto' },
+                  { label: 'Venta Real' },
+                  { label: 'Costos' },
+                  { label: 'Rentabilidad P' },
+                  { label: 'Costo creatividad' },
+                  { label: 'Utilidad Real %' },
+                  { label: 'Acción' },
+                ] as { label: string; col?: string }[]).map(({ label, col }) => (
+                  <th key={label} onClick={col ? () => toggleSort(col) : undefined}
+                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: col ? 'pointer' : 'default', userSelect: 'none' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       {label}
-                      {sortCol === col
+                      {col && (sortCol === col
                         ? sortDir === 'asc'
                           ? <ChevronUp style={{ width: 12, height: 12, color: '#1A56DB' }} />
                           : <ChevronDown style={{ width: 12, height: 12, color: '#1A56DB' }} />
-                        : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />}
+                        : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />)}
                     </span>
                   </th>
-                ))}
-                {['Centro costos', 'Costos', 'Monto real vendido', 'Costo creatividad', 'Rent. producción %', 'Acción'].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={12} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay proyectos en este período con los filtros seleccionados.
                   </td>
                 </tr>
@@ -501,8 +505,25 @@ export default function SeguimientoPage() {
                 const td = { padding: '12px 14px', fontSize: 13, color: '#374151', borderBottom: isLast ? 'none' : '1px solid #F3F4F6', verticalAlign: 'middle' as const }
                 const cl = clientesStore.find(c => c.nombre === p.cliente)
                 const isVendido = p.estadoComercial === 'Vendido'
+                const costoCC = p.centroCosto ? costosPorCentroCosto[p.centroCosto] : undefined
+                const costoCreat = costoCreatividadMap[p.id]
+                const utilidadReal = p.montoRealVendido
+                  ? ((p.montoRealVendido - (costoCC ?? 0) - (costoCreat ?? 0)) / p.montoRealVendido) * 100
+                  : undefined
                 return (
                   <tr key={p.id} onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')} onMouseLeave={e => (e.currentTarget.style.background = '#fff')} style={{ background: '#fff', transition: 'background 0.1s' }}>
+                    {/* Centro de costos — editable siempre */}
+                    <td style={td}>
+                      <CentroCostoCell value={p.centroCosto} onSave={v => updateProyecto(p.id, { centroCosto: v })} />
+                    </td>
+                    {/* Proyecto */}
+                    <td style={{ ...td, maxWidth: 180 }}>
+                      <button onClick={() => setDetalle(p)} style={{ fontWeight: 500, color: '#1A56DB', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textAlign: 'left', padding: 0 }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+                        {p.nombre}
+                      </button>
+                    </td>
                     {/* Cliente */}
                     <td style={td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -518,14 +539,6 @@ export default function SeguimientoPage() {
                           {p.subcliente && <div style={{ fontSize: 11, color: '#9CA3AF' }}>{p.subcliente}</div>}
                         </div>
                       </div>
-                    </td>
-                    {/* Proyecto */}
-                    <td style={{ ...td, maxWidth: 180 }}>
-                      <button onClick={() => setDetalle(p)} style={{ fontWeight: 500, color: '#1A56DB', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textAlign: 'left', padding: 0 }}
-                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
-                        {p.nombre}
-                      </button>
                     </td>
                     {/* Ejecutivo */}
                     <td style={td}>
@@ -544,20 +557,7 @@ export default function SeguimientoPage() {
                     </td>
                     {/* Monto estimado */}
                     <td style={{ ...td, fontWeight: 600 }}>{fmt(p.monto)}</td>
-                    {/* Centro de costos — editable siempre */}
-                    <td style={td}>
-                      <CentroCostoCell value={p.centroCosto} onSave={v => updateProyecto(p.id, { centroCosto: v })} />
-                    </td>
-                    {/* Costos — suma de Gespro 2.0 (órdenes) + legalizaciones, por centro de costo */}
-                    {(() => {
-                      const costo = p.centroCosto ? costosPorCentroCosto[p.centroCosto] : undefined
-                      return (
-                        <td style={{ ...td, color: costo ? '#B91C1C' : '#D1D5DB', fontWeight: costo ? 600 : 400, fontStyle: costo ? 'normal' : 'italic', fontSize: costo ? 13 : 12 }}>
-                          {costo ? fmt(costo) : (p.centroCosto ? 'Sin costos' : 'Sin CC')}
-                        </td>
-                      )
-                    })()}
-                    {/* Monto real vendido — editable solo si Vendido */}
+                    {/* Venta Real — editable solo si Vendido */}
                     <td style={td}>
                       <EditableNumber
                         value={p.montoRealVendido}
@@ -568,15 +568,10 @@ export default function SeguimientoPage() {
                         color="#15803D"
                       />
                     </td>
-                    {/* Costo creatividad — calculado en tiempo real desde registros del Calendar */}
-                    {(() => {
-                      const costo = costoCreatividadMap[p.id]
-                      return (
-                        <td style={{ ...td, color: costo ? '#374151' : '#D1D5DB', fontStyle: costo ? 'normal' : 'italic', fontSize: 12 }}>
-                          {costo ? fmt(Math.round(costo)) : 'Sin registros'}
-                        </td>
-                      )
-                    })()}
+                    {/* Costos — suma de Gespro 2.0 (órdenes) + legalizaciones, por centro de costo */}
+                    <td style={{ ...td, color: costoCC ? '#B91C1C' : '#D1D5DB', fontWeight: costoCC ? 600 : 400, fontStyle: costoCC ? 'normal' : 'italic', fontSize: costoCC ? 13 : 12 }}>
+                      {costoCC ? fmt(costoCC) : (p.centroCosto ? 'Sin costos' : 'Sin CC')}
+                    </td>
                     {/* Rentabilidad producción — editable siempre */}
                     <td style={td}>
                       <EditableNumber
@@ -587,6 +582,14 @@ export default function SeguimientoPage() {
                         format={v => `${v.toFixed(1).replace('.', ',')}%`}
                         color={p.rentabilidadProduccion && p.rentabilidadProduccion >= 30 ? '#15803D' : '#B45309'}
                       />
+                    </td>
+                    {/* Costo creatividad — calculado en tiempo real desde registros del Calendar */}
+                    <td style={{ ...td, color: costoCreat ? '#374151' : '#D1D5DB', fontStyle: costoCreat ? 'normal' : 'italic', fontSize: 12 }}>
+                      {costoCreat ? fmt(Math.round(costoCreat)) : 'Sin registros'}
+                    </td>
+                    {/* Utilidad Real % — (Venta Real − Costos − Costo creatividad) / Venta Real, solo si Vendido con Venta Real ingresada */}
+                    <td style={{ ...td, color: utilidadReal != null ? (utilidadReal >= 30 ? '#15803D' : '#B45309') : '#D1D5DB', fontWeight: utilidadReal != null ? 600 : 400, fontStyle: utilidadReal != null ? 'normal' : 'italic', fontSize: utilidadReal != null ? 13 : 12 }}>
+                      {utilidadReal != null ? `${utilidadReal.toFixed(1).replace('.', ',')}%` : '—'}
                     </td>
                     {/* Acción */}
                     <td style={td}>
