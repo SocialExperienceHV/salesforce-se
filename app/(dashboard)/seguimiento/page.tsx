@@ -354,8 +354,6 @@ export default function SeguimientoPage() {
       if      (sortCol === 'cliente')   { va = a.cliente;           vb = b.cliente }
       else if (sortCol === 'nombre')    { va = a.nombre;            vb = b.nombre }
       else if (sortCol === 'ejecutivo') { va = a.ejecutivo;         vb = b.ejecutivo }
-      else if (sortCol === 'fechaPres') { va = a.fechaPresentacion; vb = b.fechaPresentacion }
-      else if (sortCol === 'fechaEjec') { va = a.fechaEntrega;      vb = b.fechaEntrega }
       else if (sortCol === 'estado')    { va = a.estadoComercial;   vb = b.estadoComercial }
       else if (sortCol === 'monto')     { va = a.monto;             vb = b.monto }
       const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''), 'es')
@@ -463,15 +461,13 @@ export default function SeguimientoPage() {
       {/* Table */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1450 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1250 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
                   { label: 'Cliente',              col: 'cliente' },
                   { label: 'Proyecto',             col: 'nombre' },
                   { label: 'KAM',                  col: 'ejecutivo' },
-                  { label: 'F. Presentación',      col: 'fechaPres' },
-                  { label: 'F. Ejecución',         col: 'fechaEjec' },
                   { label: 'Estado',               col: 'estado' },
                   { label: 'Monto estimado',       col: 'monto' },
                 ] as { label: string; col: string }[]).map(({ label, col }) => (
@@ -495,7 +491,7 @@ export default function SeguimientoPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={10} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay proyectos en este período con los filtros seleccionados.
                   </td>
                 </tr>
@@ -540,8 +536,6 @@ export default function SeguimientoPage() {
                         <span style={{ fontSize: 13 }}>{p.ejecutivo}</span>
                       </div>
                     </td>
-                    <td style={{ ...td, color: '#6B7280' }}>{p.fechaPresentacion || '—'}</td>
-                    <td style={{ ...td, color: '#6B7280' }}>{p.fechaEntrega || '—'}</td>
                     {/* Estado */}
                     <td style={td}>
                       <span style={{ display: 'inline-flex', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: est.bg, color: est.text, whiteSpace: 'nowrap' }}>
