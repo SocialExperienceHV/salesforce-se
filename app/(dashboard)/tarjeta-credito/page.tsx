@@ -539,7 +539,7 @@ export default function TarjetaCredito() {
             </div>
           ))}
           <span style={{ fontSize:12, color:'#9CA3AF', marginLeft:'auto' }}>
-            {docsFiltrados.length} documento{docsFiltrados.length!==1?'s':''}
+            {allItems.length} gasto{allItems.length!==1?'s':''}
           </span>
         </div>
       </div>
@@ -548,12 +548,12 @@ export default function TarjetaCredito() {
       <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
         {/* Tabla — oculta en modo panel completo */}
         <div style={{ flex:1, overflowY:'auto', minWidth:0, display: panelFull ? 'none' : 'block' }}>
-          {docsFiltrados.length===0?(
+          {allItems.length===0?(
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 24px', gap:12 }}>
               <div style={{ width:52, height:52, borderRadius:'50%', background:'#FEF3C7', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <CreditCard style={{width:26,height:26,color:'#D97706'}}/>
               </div>
-              <p style={{ fontSize:14, fontWeight:600, color:'#111827', margin:0 }}>No hay documentos</p>
+              <p style={{ fontSize:14, fontWeight:600, color:'#111827', margin:0 }}>No hay gastos</p>
               <p style={{ fontSize:13, color:'#9CA3AF', margin:0 }}>Crea un nuevo documento para empezar.</p>
             </div>
           ):(
@@ -562,66 +562,65 @@ export default function TarjetaCredito() {
                 <tr>
                   <th style={thT}>Tarjeta</th>
                   <th style={thT}>Fecha</th>
-                  <th style={{ ...thT, textAlign:'center' }}>Ítems</th>
-                  <th style={{ ...thT, textAlign:'right' }}>Total</th>
-                  <th style={{ ...thT, textAlign:'right' }}>Entregados</th>
-                  <th style={{ ...thT, textAlign:'right' }}>Pendientes</th>
+                  <th style={thT}>Item</th>
+                  <th style={thT}>Responsable</th>
+                  <th style={thT}>Centro Costos</th>
+                  <th style={thT}>Descripción</th>
+                  <th style={{ ...thT, textAlign:'right' }}>Valor</th>
                   <th style={thT}>Estado</th>
                   <th style={thT}>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {docsFiltrados.map(doc=>{
+                {docsFiltrados.flatMap(doc=>{
                   const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
-                  const totalDoc = doc.items.reduce((s,i)=>s+i.monto,0)
-                  const entDoc   = doc.items.filter(i=>i.status==='Entregado').reduce((s,i)=>s+i.monto,0)
-                  const pendDoc  = doc.items.filter(i=>i.status==='Pendiente').reduce((s,i)=>s+i.monto,0)
                   const isSelected = doc.id===selectedId
-                  return (
-                    <tr key={doc.id}
+                  return doc.items
+                    .filter(item => filtroResponsable==='Todos' || item.responsable===filtroResponsable)
+                    .map((item, idx)=>(
+                    <tr key={item.id}
+                      style={{ background: isSelected ? '#F0F9FF' : idx%2===0?'#fff':'#FAFAFA', cursor:'pointer' }}
                       onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
-                      style={{ cursor:'pointer', background: isSelected?'#F0F9FF':'transparent' }}
-                      onMouseEnter={ev=>{ if(!isSelected)(ev.currentTarget as HTMLElement).style.background='#FAFAFA' }}
-                      onMouseLeave={ev=>{ (ev.currentTarget as HTMLElement).style.background=isSelected?'#F0F9FF':'transparent' }}>
+                      onMouseEnter={ev=>{ if(!isSelected)(ev.currentTarget as HTMLElement).style.background='#F3F4F6' }}
+                      onMouseLeave={ev=>{ (ev.currentTarget as HTMLElement).style.background=isSelected?'#F0F9FF':idx%2===0?'#fff':'#FAFAFA' }}>
                       <td style={tdT}>
-                        <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                          <div style={{ width:30, height:30, borderRadius:7, background: doc.finalizado?'#059669':'#111827', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <CreditCard style={{width:14,height:14,color:'#fff'}}/>
+                        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                          <div style={{ width:26, height:26, borderRadius:6, background: doc.finalizado?'#059669':'#111827', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <CreditCard style={{width:12,height:12,color:'#fff'}}/>
                           </div>
                           <div>
-                            <div style={{ fontSize:13, fontWeight:700, color:'#111827', letterSpacing:0.5 }}>•••• {doc.ultimos4}</div>
-                            {tarjeta?.nombre&&<div style={{ fontSize:11, color:'#6B7280' }}>{tarjeta.nombre}</div>}
+                            <div style={{ fontSize:12, fontWeight:700, color:'#111827' }}>•••• {doc.ultimos4}</div>
+                            {tarjeta?.nombre&&<div style={{ fontSize:10, color:'#9CA3AF' }}>{tarjeta.nombre}</div>}
                           </div>
                         </div>
                       </td>
-                      <td style={{ ...tdT, color:'#6B7280', whiteSpace:'nowrap' }}>{doc.fecha}</td>
-                      <td style={{ ...tdT, textAlign:'center' }}>
-                        <span style={{ fontSize:12, fontWeight:600, color:'#374151', background:'#F3F4F6', padding:'2px 8px', borderRadius:20 }}>{doc.items.length}</span>
+                      <td style={{ ...tdT, color:'#6B7280', whiteSpace:'nowrap', fontSize:12 }}>{item.fechaItem||doc.fecha}</td>
+                      <td style={{ ...tdT, maxWidth:200 }}>
+                        <span style={{ fontSize:12, color:'#111827', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.item||'—'}</span>
                       </td>
-                      <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(totalDoc)}</td>
-                      <td style={{ ...tdT, textAlign:'right', fontWeight:600, color:'#065F46', fontVariantNumeric:'tabular-nums' }}>{entDoc>0?fmt(entDoc):'—'}</td>
-                      <td style={{ ...tdT, textAlign:'right', fontWeight:600, color: pendDoc>0?'#C2410C':'#9CA3AF', fontVariantNumeric:'tabular-nums' }}>{pendDoc>0?fmt(pendDoc):'—'}</td>
+                      <td style={{ ...tdT, fontSize:12 }}>{item.responsable||<span style={{color:'#9CA3AF'}}>—</span>}</td>
+                      <td style={{ ...tdT, fontSize:12 }}>
+                        {item.centroCosto
+                          ? <span style={{ background:'#EFF6FF', color:'#1D4ED8', padding:'2px 7px', borderRadius:5, fontSize:11, fontWeight:600 }}>{item.centroCosto}</span>
+                          : <span style={{ color:'#F59E0B', fontSize:11, fontWeight:600 }}>Pendiente</span>}
+                      </td>
+                      <td style={{ ...tdT, fontSize:12, color:'#6B7280', maxWidth:160 }}>
+                        <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.descripcion||'—'}</span>
+                      </td>
+                      <td style={{ ...tdT, textAlign:'right', fontWeight:700, color:'#111827', fontVariantNumeric:'tabular-nums' }}>{fmt(item.monto)}</td>
                       <td style={tdT}>
-                        {doc.finalizado?(
-                          <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'4px 10px', borderRadius:20 }}>✓ Finalizado</span>
-                        ):(
-                          <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'4px 10px', borderRadius:20 }}>En proceso</span>
-                        )}
+                        {item.status==='Entregado'
+                          ? <span style={{ fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 8px', borderRadius:20 }}>✓ Entregado</span>
+                          : <span style={{ fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', padding:'3px 8px', borderRadius:20 }}>Pendiente</span>}
                       </td>
                       <td style={tdT} onClick={e=>e.stopPropagation()}>
-                        <div style={{ display:'flex', gap:6 }}>
-                          <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
-                            style={{ height:30, padding:'0 12px', border:'1px solid #E5E7EB', borderRadius:7, background: isSelected?'#111827':'#fff', color: isSelected?'#fff':'#374151', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                            {isSelected?'Cerrar':'Ver'}
-                          </button>
-                          <button onClick={()=>exportDocPDF(doc,tarjeta?.nombre)}
-                            style={{ display:'flex', alignItems:'center', gap:4, height:30, padding:'0 10px', border:'1px solid #E5E7EB', borderRadius:7, background:'#fff', color:'#374151', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                            <Download style={{width:12,height:12}}/> PDF
-                          </button>
-                        </div>
+                        <button onClick={()=>isSelected?handleClosePanel():handleSelectDoc(doc.id)}
+                          style={{ height:28, padding:'0 10px', border:'1px solid #E5E7EB', borderRadius:7, background: isSelected?'#111827':'#fff', color: isSelected?'#fff':'#374151', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                          {isSelected?'Cerrar':'Editar'}
+                        </button>
                       </td>
                     </tr>
-                  )
+                  ))
                 })}
               </tbody>
             </table>
