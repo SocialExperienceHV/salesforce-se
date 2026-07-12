@@ -398,6 +398,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         para: 'todos',
         href: '/proyectos',
       })
+      const proyectoActualizado = { ...old, ...changes }
+      fetch('/api/enviar-proyecto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          centroCosto: proyectoActualizado.centroCosto ?? '',
+          nombre: proyectoActualizado.nombre ?? '',
+          cliente: proyectoActualizado.cliente ?? '',
+          monto: proyectoActualizado.montoRealVendido ?? proyectoActualizado.monto,
+          fechaInicio: proyectoActualizado.fechaInicio,
+          fechaEntrega: proyectoActualizado.fechaEntrega,
+        }),
+      }).catch(() => {})
     }
     setProyectos(prev => {
       const next = prev.map(p => p.id === id ? { ...p, ...changes } : p)
