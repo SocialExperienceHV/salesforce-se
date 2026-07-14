@@ -247,7 +247,9 @@ export default function TraficoPage() {
     const matchSearch = !search
       || p.nombre.toLowerCase().includes(search.toLowerCase())
       || p.cliente.toLowerCase().includes(search.toLowerCase())
-    return matchDia && matchSearch
+    // Finalizados se ocultan del listado salvo que se estén buscando explícitamente
+    const matchFinalizado = search.trim() !== '' || p.estadoTrafico !== 'Finalizado'
+    return matchDia && matchSearch && matchFinalizado
   }), [proyectos, diaActivo, search])
 
   // Ordenar
