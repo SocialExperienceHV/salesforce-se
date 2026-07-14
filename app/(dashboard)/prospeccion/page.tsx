@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown } from 'lucide-react'
+import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown, Pencil } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import type { Prospecto } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const FASES = [
@@ -201,6 +202,98 @@ function NuevoProspectoModal({ onClose, kams }: { onClose: () => void; kams: str
   )
 }
 
+// ─── Modal Editar Prospecto ─────────────────────────────────────────────────────
+function EditarProspectoModal({ prospecto, onClose, kams }: { prospecto: Prospecto; onClose: () => void; kams: string[] }) {
+  const { updateProspecto } = useStore()
+  const [form, setForm] = useState({
+    empresa: prospecto.empresa, contacto: prospecto.contacto, telefono: prospecto.telefono ?? '',
+    email: prospecto.email ?? '', cargo: prospecto.cargo ?? '', origen: prospecto.origen ?? '',
+    primerContactoPersona: prospecto.primerContactoPersona ?? '', comercial: prospecto.comercial ?? '', fase: prospecto.fase,
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.empresa.trim()) return
+    updateProspecto(prospecto.id, form)
+    onClose()
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 36, border: '1px solid #E5E7EB', borderRadius: 7, padding: '0 10px', fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }
+  const sel: React.CSSProperties = { ...inp, appearance: 'none', cursor: 'pointer',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 9px center', paddingRight: 28 }
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, display: 'block' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#111827', marginBottom: 20 }}>Editar prospecto</div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>Empresa *</label>
+              <input required value={form.empresa} onChange={e => setForm(f => ({...f, empresa: e.target.value}))} placeholder="Nombre de la empresa" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Contacto</label>
+              <input value={form.contacto} onChange={e => setForm(f => ({...f, contacto: e.target.value}))} placeholder="Nombre del contacto" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <input value={form.cargo} onChange={e => setForm(f => ({...f, cargo: e.target.value}))} placeholder="Cargo del contacto" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Teléfono</label>
+              <input type="tel" value={form.telefono} onChange={e => setForm(f => ({...f, telefono: e.target.value}))} placeholder="Número de contacto" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Email</label>
+              <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} placeholder="correo@empresa.com" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Primer contacto (persona)</label>
+              <select value={form.primerContactoPersona} onChange={e => setForm(f => ({...f, primerContactoPersona: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {PRIMER_CONTACTO_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Comercial</label>
+              <select value={form.comercial} onChange={e => setForm(f => ({...f, comercial: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {kams.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Origen</label>
+              <select value={form.origen} onChange={e => setForm(f => ({...f, origen: e.target.value}))} style={sel}>
+                <option value="">Seleccionar...</option>
+                {ORIGENES.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Fase</label>
+              <select value={form.fase} onChange={e => setForm(f => ({...f, fase: e.target.value}))} style={sel}>
+                {FASES.map(f => <option key={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, height: 38, border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 500, color: '#374151', background: '#fff', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+            <button type="submit"
+              style={{ flex: 1, height: 38, background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+              Guardar cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProspeccionPage() {
   const { prospectos, updateProspecto, personasStore } = useStore()
@@ -210,6 +303,7 @@ export default function ProspeccionPage() {
   const [filtroFase, setFiltroFase] = useState('Todos')
   const [filtroContacto, setFiltroContacto] = useState('Todos')
   const [showModal, setShowModal] = useState(false)
+  const [editingProspecto, setEditingProspecto] = useState<Prospecto | null>(null)
 
   const filtered = useMemo(() => prospectos.filter(p => {
     if (search && !p.empresa.toLowerCase().includes(search.toLowerCase()) && !(p.contacto ?? '').toLowerCase().includes(search.toLowerCase())) return false
@@ -315,12 +409,13 @@ export default function ProspeccionPage() {
                 <th style={{ ...th, whiteSpace: 'normal', lineHeight: 1.3 }}>Fecha primer<br/>contacto</th>
                 <th style={th}>Último contacto</th>
                 <th style={th}>Próximo seguimiento</th>
+                <th style={th}>Acción</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ ...td, textAlign: 'center', color: '#9CA3AF', padding: '40px 20px' }}>
+                  <td colSpan={11} style={{ ...td, textAlign: 'center', color: '#9CA3AF', padding: '40px 20px' }}>
                     No hay prospectos que coincidan con los filtros.
                   </td>
                 </tr>
@@ -402,6 +497,14 @@ export default function ProspeccionPage() {
                         onSave={(fecha, texto) => updateProspecto(p.id, { proximoSeguimientoFecha: fecha, proximoSeguimientoTexto: texto })}
                       />
                     </td>
+
+                    {/* Acción */}
+                    <td style={td}>
+                      <button onClick={() => setEditingProspecto(p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', border: '1px solid #E5E7EB', borderRadius: 7, background: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        <Pencil style={{ width: 12, height: 12 }} /> Editar
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -415,6 +518,7 @@ export default function ProspeccionPage() {
       </div>
 
       {showModal && <NuevoProspectoModal onClose={() => setShowModal(false)} kams={kams} />}
+      {editingProspecto && <EditarProspectoModal prospecto={editingProspecto} onClose={() => setEditingProspecto(null)} kams={kams} />}
     </div>
   )
 }
