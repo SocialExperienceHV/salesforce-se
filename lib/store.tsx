@@ -256,6 +256,10 @@ async function sbUpsert(table: string, id: string, data: unknown) {
   await supabase.from(table).upsert({ id, data })
 }
 
+async function sbUpsertOverride(key: string, data: unknown) {
+  await supabase.from('plan_overrides').upsert({ key, data })
+}
+
 // ─── Context ───────────────────────────────────────────────────────────────────
 
 type StoreCtx = {
@@ -490,7 +494,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const current = planOverrides[key] ?? { dias: [], estado: 'En proceso' as const }
     const updated = { ...current, ...changes }
     setPlanOverrides(prev => ({ ...prev, [key]: updated }))
-    sbUpsert('plan_overrides', key, updated)
+    sbUpsertOverride(key, updated)
   }
 
   function addLegalizacion(l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>): string {
