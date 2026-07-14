@@ -55,12 +55,13 @@ function mesDeProyecto(p: Proyecto): string {
 }
 
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
-function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, onVentaRealChange }: {
+function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, onVentaRealChange, onEditar }: {
   proyecto: Proyecto
   onClose: () => void
   onEstadoChange: (id: string, estado: Proyecto['estadoComercial']) => void
   onCentroCostoChange: (id: string, cc: string) => void
   onVentaRealChange: (id: string, monto: number) => void
+  onEditar: () => void
 }) {
   const estadoOpts: Proyecto['estadoComercial'][] = ['En propuesta', 'En negociación', 'Vendido', 'Perdido']
   const [cc, setCc] = useState(proyecto.centroCosto ?? '')
@@ -183,9 +184,135 @@ function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, 
 
         <div style={{ padding: '16px 24px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 10 }}>
           <Button variant="outline" className="flex-1" onClick={onClose}>Cerrar</Button>
-          <Link href="/proyectos/nuevo" className="flex-1">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">Editar proyecto</Button>
-          </Link>
+          <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={onEditar}>Editar proyecto</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal Editar Proyecto ──────────────────────────────────────────────────────
+function EditarProyectoModal({ proyecto, onClose, clientesStore, kams }: {
+  proyecto: Proyecto
+  onClose: () => void
+  clientesStore: { id: string; nombre: string; subclientes?: string[] }[]
+  kams: string[]
+}) {
+  const { updateProyecto } = useStore()
+  const [form, setForm] = useState({
+    nombre: proyecto.nombre,
+    cliente: proyecto.cliente,
+    subcliente: proyecto.subcliente,
+    ejecutivo: proyecto.ejecutivo,
+    tipo: proyecto.tipo,
+    fechaInicio: proyecto.fechaInicio,
+    fechaPresentacion: proyecto.fechaPresentacion,
+    fechaEntrega: proyecto.fechaEntrega,
+    monto: proyecto.monto ? String(proyecto.monto) : '',
+    prioridad: proyecto.prioridad,
+    descripcion: proyecto.descripcion,
+  })
+  const [error, setError] = useState('')
+
+  const subclientesDisponibles = clientesStore.find(c => c.nombre === form.cliente)?.subclientes ?? []
+
+  function handleGuardar() {
+    if (!form.nombre.trim()) { setError('El nombre del proyecto es obligatorio.'); return }
+    if (!form.cliente) { setError('Selecciona un cliente.'); return }
+    if (!form.ejecutivo) { setError('Selecciona un ejecutivo.'); return }
+    updateProyecto(proyecto.id, {
+      nombre: form.nombre.trim(),
+      cliente: form.cliente,
+      subcliente: form.subcliente,
+      ejecutivo: form.ejecutivo,
+      tipo: form.tipo,
+      fechaInicio: form.fechaInicio,
+      fechaPresentacion: form.fechaPresentacion,
+      fechaEntrega: form.fechaEntrega,
+      monto: Number(form.monto) || 0,
+      prioridad: form.prioridad,
+      descripcion: form.descripcion,
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Editar proyecto</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <Label className="text-xs">Nombre del proyecto</Label>
+            <Input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} className="h-9 text-sm" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Cliente / Marca</Label>
+            <Select value={form.cliente} onValueChange={v => v && setForm(f => ({ ...f, cliente: v, subcliente: '' }))}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectContent>{clientesStore.map(c => <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Contacto / Subcliente</Label>
+            <Select value={form.subcliente} onValueChange={v => v && setForm(f => ({ ...f, subcliente: v }))} disabled={!form.cliente}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectContent>{subclientesDisponibles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">KAM</Label>
+            <Select value={form.ejecutivo} onValueChange={v => v && setForm(f => ({ ...f, ejecutivo: v }))}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar KAM..." /></SelectTrigger>
+              <SelectContent>{kams.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Tipo de proyecto</Label>
+            <Select value={form.tipo} onValueChange={v => v && setForm(f => ({ ...f, tipo: v }))}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectContent>{tipos.filter(t => t !== 'Todos').map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Prioridad</Label>
+            <Select value={form.prioridad} onValueChange={v => v && setForm(f => ({ ...f, prioridad: v as Proyecto['prioridad'] }))}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Alta">Alta</SelectItem>
+                <SelectItem value="Medio">Medio</SelectItem>
+                <SelectItem value="Baja">Baja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Fecha de inicio</Label>
+            <Input type="date" value={form.fechaInicio} onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))} className="h-9 text-sm" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Fecha de presentación</Label>
+            <Input type="date" value={form.fechaPresentacion} onChange={e => setForm(f => ({ ...f, fechaPresentacion: e.target.value }))} className="h-9 text-sm" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Fecha de ejecución</Label>
+            <Input type="date" value={form.fechaEntrega} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} className="h-9 text-sm" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Monto estimado de facturación</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+              <Input value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value.replace(/\D/g, '') }))} className="h-9 text-sm pl-7" />
+            </div>
+          </div>
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <Label className="text-xs">Descripción</Label>
+            <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} rows={3}
+              className="text-sm border border-input rounded-md px-3 py-2 outline-none resize-none" />
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-500 mt-3 font-medium">{error}</p>}
+        <div className="flex items-center justify-end gap-3 mt-6">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleGuardar} className="bg-blue-600 hover:bg-blue-700 text-white px-8">Guardar cambios</Button>
         </div>
       </div>
     </div>
@@ -202,6 +329,7 @@ export default function ProyectosPage() {
   const [cliente, setCliente] = useState('Todos')
   const [mes, setMes] = useState('Todos')
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
+  const [editando, setEditando] = useState<Proyecto | null>(null)
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -243,6 +371,7 @@ export default function ProyectosPage() {
 
   // Si el proyecto abierto fue modificado, sincroniza el panel
   const detalleActual = detalle ? (proyectos.find(p => p.id === detalle.id) ?? null) : null
+  const editandoActual = editando ? (proyectos.find(p => p.id === editando.id) ?? null) : null
 
   return (
     <div className="p-6 flex flex-col gap-5">
@@ -253,6 +382,16 @@ export default function ProyectosPage() {
           onEstadoChange={(id, est) => updateProyecto(id, { estadoComercial: est })}
           onCentroCostoChange={(id, cc) => updateProyecto(id, { centroCosto: cc })}
           onVentaRealChange={(id, monto) => updateProyecto(id, { montoRealVendido: monto })}
+          onEditar={() => setEditando(detalleActual)}
+        />
+      )}
+
+      {editandoActual && (
+        <EditarProyectoModal
+          proyecto={editandoActual}
+          onClose={() => setEditando(null)}
+          clientesStore={clientes}
+          kams={kamsFiltro.filter(k => k !== 'Todos')}
         />
       )}
 
@@ -438,6 +577,7 @@ export default function ProyectosPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => setDetalle(p)}>Ver detalle</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEditando(p)}>Editar proyecto</DropdownMenuItem>
                           {(['En propuesta','En negociación','Vendido','Perdido'] as Proyecto['estadoComercial'][]).map(opt => (
                             <DropdownMenuItem key={opt} onClick={() => updateProyecto(p.id, { estadoComercial: opt })}>
                               → {opt}
