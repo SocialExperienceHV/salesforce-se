@@ -29,24 +29,23 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   const imgId = wb.addImage({ base64: LOGO_B64, extension: "png" })
   ws.addImage(imgId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 149, height: 54 } })
   ws.mergeCells("A1:A3")
-  ws.mergeCells("B1:D3")
+  ws.mergeCells("B1:F3")
   const title = ws.getCell("B1")
   title.value = "PRESUPUESTO"
   title.font = ar(20, { bold: true })
   title.alignment = { horizontal: "center", vertical: "middle" }
-  ws.mergeCells("E1:F1")
 
-  const meta: [string, string, boolean][] = [["CENTRO COSTO:", b.centroCosto, false], ["CLIENTE:", b.cliente, true],
-    ["EVENTO:", b.evento, true], ["FECHA:", b.fecha, true], ["CIUDAD", b.ciudad, true],
-    ["DIRECTOR PROYECTO", b.director, true]]
+  const meta: [string, string][] = [["CENTRO COSTO:", b.centroCosto], ["CLIENTE:", b.cliente],
+    ["EVENTO:", b.evento], ["FECHA:", b.fecha], ["CIUDAD", b.ciudad],
+    ["DIRECTOR PROYECTO", b.director]]
   meta.forEach((m, i) => {
     const row = 4 + i
     ws.getCell("A" + row).value = m[0]
     ws.getCell("A" + row).font = ar(10, { bold: true })
-    if (m[2]) ws.mergeCells("B" + row + ":E" + row)
+    ws.mergeCells("B" + row + ":F" + row)
     ws.getCell("B" + row).value = m[1]
     ws.getCell("B" + row).font = ar(10)
-    for (let cix = 1; cix <= 5; cix++) ws.getCell(row, cix).border = bordes
+    for (let cix = 1; cix <= 6; cix++) ws.getCell(row, cix).border = bordes
   })
 
   const heads: Record<number, string> = { 1: "PROCESO", 2: "ÍTEM", 3: "COSTO UNIDAD", 4: "CANTIDAD", 5: "DÍAS", 6: "COSTO TOTAL",
@@ -153,7 +152,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   ws.mergeCells(T + 3, 4, T + 3, 6)
   const rh = ws.getCell(T + 3, 4)
   rh.value = "RESUMEN PRESUPUESTO"
-  rh.font = ar(10, { bold: true, color: { argb: BLANCO } })
+  rh.font = ar(11, { bold: true, color: { argb: BLANCO } })
   rh.fill = fill(AZUL)
   rh.alignment = { horizontal: "center" }
   rh.border = bordes
@@ -162,7 +161,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
     for (let cix = 4; cix <= 6; cix++) {
       const c = ws.getCell(rowN, cix)
       c.fill = fill(NEGRO)
-      c.font = ar(10, { bold: true, color: { argb: BLANCO } })
+      c.font = ar(11, { bold: true, color: { argb: BLANCO } })
       c.border = bordes
     }
     ws.getCell(rowN, 4).value = texto
