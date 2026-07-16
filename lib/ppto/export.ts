@@ -26,13 +26,15 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet("PPTO " + (b.cliente || "").slice(0, 20))
-  const widths = [22.2, 70.7, 15.3, 14.2, 12.2, 21.5, 10.5, 16.5, 14, 16.5, 10.5, 16.5, 29.7]
+  const widths = [22.2, 70.7, 15.3, 11.7, 11.7, 21.5, 10.5, 16.5, 14, 16.5, 10.5, 16.5, 29.7]
   ws.columns = (soloCliente ? widths.slice(0, 7) : widths).map(w => ({ width: w }))
 
   const imgId = wb.addImage({ base64: LOGO_B64, extension: "png" })
   ws.addImage(imgId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 149, height: 54 } })
   ws.mergeCells("A1:A3")
   ws.mergeCells("B1:F3")
+  ws.getCell("A1").border = bordes
+  for (let cix = 2; cix <= 6; cix++) ws.getCell(1, cix).border = bordes
   const title = ws.getCell("B1")
   title.value = "PRESUPUESTO"
   title.font = ar(20, { bold: true })
@@ -45,10 +47,11 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
     const row = 4 + i
     ws.getCell("A" + row).value = m[0]
     ws.getCell("A" + row).font = ar(10, { bold: true })
+    ws.getCell("A" + row).border = { top: thin, left: thin, bottom: thin }
     ws.mergeCells("B" + row + ":F" + row)
     ws.getCell("B" + row).value = m[1]
     ws.getCell("B" + row).font = ar(10)
-    for (let cix = 1; cix <= 6; cix++) ws.getCell(row, cix).border = bordes
+    for (let cix = 2; cix <= 6; cix++) ws.getCell(row, cix).border = bordes
   })
 
   const heads: Record<number, string> = { 1: "PROCESO", 2: "ÍTEM", 3: "COSTO UNIDAD", 4: "CANTIDAD", 5: "DÍAS", 6: "COSTO TOTAL",
@@ -111,17 +114,15 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
   const last = first + b.rows.length - 1
   const T = last + 1
 
-  ws.mergeCells(T, 1, T, 5)
+  for (let cix = 1; cix <= 5; cix++) ws.getCell(T, cix).fill = fill(AZUL)
   const tot = ws.getCell(T, 6)
   tot.value = { formula: `SUM(F${first}:F${last})` }
   tot.numFmt = CONT
-  tot.font = ar(10, { bold: true, color: { argb: BLANCO } })
+  tot.font = ar(11, { bold: true, color: { argb: BLANCO } })
   tot.fill = fill(GRIS_TOTAL)
   tot.border = bordes
 
   const bold10 = ar(10, { bold: true })
-
-  for (let cix = 1; cix <= 5; cix++) ws.getCell(T + 2, cix).fill = fill(AZUL)
 
   if (!soloCliente) {
     const setLM = (rowN: number, lVal: unknown, mText: string, opts?: { pct?: boolean }) => {
@@ -230,6 +231,9 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
   cargo.value = "DIRECTOR DEL PROYECTO A CARGO"
   cargo.font = ar(9, { bold: true })
   cargo.alignment = { horizontal: "center" }
+  cargo.border = { top: thin }
+  ws.getCell(T + 11, 2).border = { top: thin }
+  ws.getCell(T + 11, 3).border = { top: thin }
 
   const buf = await wb.xlsx.writeBuffer()
   return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
@@ -295,7 +299,7 @@ export function buildBasicBlob(b: PptoBudget, variant: PptoExportVariant = 'cost
   const ref = XLSX.utils.decode_range(ws["!ref"] as string)
   ref.e.r = Math.max(ref.e.r, T + 11); ref.e.c = Math.max(ref.e.c, soloCliente ? 6 : 12)
   ws["!ref"] = XLSX.utils.encode_range(ref)
-  const widths = [{ wch: 22 }, { wch: 70.7 }, { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
+  const widths = [{ wch: 22 }, { wch: 70.7 }, { wch: 15 }, { wch: 11.7 }, { wch: 11.7 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
   ws["!cols"] = soloCliente ? widths.slice(0, 7) : widths
   XLSX.utils.book_append_sheet(wb, ws, "PPTO")
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" })
