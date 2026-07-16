@@ -132,6 +132,8 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   setLM(T + 4, { formula: `F${T + 7}-L${T + 3}` }, "UTILIDAD REAL")
   setLM(T + 5, { formula: `IF(F${T + 7}=0,0,L${T + 4}/F${T + 7})` }, "UT. REAL EXPRESADA EN %", { pct: true })
 
+  for (let cix = 1; cix <= 5; cix++) ws.getCell(T + 2, cix).fill = fill(AZUL)
+
   ws.mergeCells(T + 2, 9, T + 2, 10)
   const proy = ws.getCell(T + 2, 9)
   proy.value = "PROYECCION"
@@ -199,14 +201,13 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   cond(T + 6, "* VALIDEZ DE LA OFERTA:", b.validez || "")
 
   // banda negra: los valores no incluyen IVA
-  ws.mergeCells(T + 7, 1, T + 7, 3)
+  ws.mergeCells(T + 7, 1, T + 7, 2)
   const iva = ws.getCell(T + 7, 1)
   iva.value = "* LOS ANTERIORES VALORES NO INCLUYEN IVA"
   iva.font = ar(9, { bold: true, color: { argb: BLANCO } })
   iva.fill = fill(NEGRO)
   iva.alignment = { horizontal: "center" }
   ws.getCell(T + 7, 2).fill = fill(NEGRO)
-  ws.getCell(T + 7, 3).fill = fill(NEGRO)
 
   // firma del director
   ws.mergeCells(T + 10, 1, T + 10, 3)
