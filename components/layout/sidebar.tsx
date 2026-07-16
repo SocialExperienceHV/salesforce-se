@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, Search,
   FolderOpen, TrendingUp, Layers, Calendar,
-  List, BarChart3, Settings, ChevronLeft, Wallet, Receipt, CreditCard, FileSpreadsheet
+  List, BarChart3, Settings, ChevronLeft, Wallet, Receipt, CreditCard, FileSpreadsheet, ClipboardCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/lib/store'
@@ -16,6 +16,7 @@ const ALL_NAV = [
   { href: '/proyectos',       label: 'Proyectos',              icon: FolderOpen },
   { href: '/seguimiento',     label: 'Seguimiento',            icon: TrendingUp },
   { href: '/ppto',            label: 'PPTO',                   icon: FileSpreadsheet },
+  { href: '/real-ejecutado',  label: 'Real Ejecutado',         icon: ClipboardCheck },
   { href: '/trafico',         label: 'Tráfico',                icon: Layers },
   { href: '/plan-trabajo',    label: 'Plan de trabajo',        icon: List },
   { href: '/calendar',        label: 'Calendar',               icon: Calendar },
