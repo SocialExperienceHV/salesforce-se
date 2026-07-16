@@ -61,7 +61,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   })
   ws.getRow(11).height = 30.8
 
-  const first = 14
+  const first = 12
   const factor = 1 - (b.margenPct || 0) / 100
   b.rows.forEach((r, i) => {
     const x = first + i
@@ -230,7 +230,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
 export function buildBasicBlob(b: PptoBudget): Blob {
   const wb = XLSX.utils.book_new()
   const aoa: unknown[][] = []
-  for (let i = 0; i < 13; i++) aoa.push([])
+  for (let i = 0; i < 11; i++) aoa.push([])
   aoa[0] = ["", "PRESUPUESTO"]
   aoa[3] = ["CENTRO COSTO:", b.centroCosto]
   aoa[4] = ["CLIENTE:", b.cliente]
@@ -239,7 +239,7 @@ export function buildBasicBlob(b: PptoBudget): Blob {
   aoa[7] = ["CIUDAD", b.ciudad]
   aoa[8] = ["DIRECTOR PROYECTO", b.director]
   aoa[10] = ["PROCESO", "ÍTEM", "COSTO UNIDAD", "CANTIDAD", "DÍAS", "COSTO TOTAL", "", "VENTA SUGERIDA", "COSTO REAL UND", "COSTO REAL TOTAL", "", "COSTO TOTAL ORDENADO", "PROVEEDOR"]
-  const first = 14
+  const first = 12
   b.rows.forEach(r => {
     aoa.push([r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0, "", 0, r.costoRealUnd || 0, 0, "", r.ordenado || 0, r.proveedor || ""])
   })
