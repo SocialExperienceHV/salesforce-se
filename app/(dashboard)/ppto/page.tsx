@@ -89,7 +89,7 @@ export default function PptoPage() {
     return [...map.entries()].map(([centroCosto, versions]) => {
       const sorted = [...versions].sort((a, b) => b.version - a.version)
       return { centroCosto, versions: sorted, latest: sorted[0] }
-    }).sort((a, b) => a.centroCosto.localeCompare(b.centroCosto, 'es'))
+    }).sort((a, b) => (b.latest.createdAt || '').localeCompare(a.latest.createdAt || ''))
   }, [budgets])
 
   function grupoDe(cc: string) {
@@ -322,29 +322,26 @@ export default function PptoPage() {
             {gruposFiltrados.length === 0 ? (
               <div className="empty">No hay presupuestos que coincidan con la búsqueda.</div>
             ) : (
-              <div className="cclist">
-                {gruposFiltrados.map(g => (
-                  <button key={g.centroCosto} className="cccard" onClick={() => abrirVersiones(g.centroCosto)}>
-                    <div className="ccf ccf-cc">
-                      <span className="cclabel">Centro de costo</span>
-                      <span className="ccnum">{g.centroCosto}</span>
-                    </div>
-                    <div className="ccf ccf-proy">
-                      <span className="cclabel">Proyecto</span>
-                      <span className="ccevento">{g.latest.evento || 'Sin nombre'}</span>
-                    </div>
-                    <div className="ccf ccf-cli">
-                      <span className="cclabel">Cliente</span>
-                      <span className="cccliente">{g.latest.cliente || '—'}</span>
-                    </div>
-                    <div className="ccf ccf-prod">
-                      <span className="cclabel">Productor</span>
-                      <span className="ccproductor">{productoresDe(g.centroCosto).join(', ') || '—'}</span>
-                    </div>
-                    <div className="ccbadge">{g.versions.length} {g.versions.length === 1 ? 'versión' : 'versiones'}</div>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="cclistheader">
+                  <div className="ccf-cc">Centro de costo</div>
+                  <div className="ccf-proy">Proyecto</div>
+                  <div className="ccf-cli">Cliente</div>
+                  <div className="ccf-prod">Productor</div>
+                  <div className="ccheadbadge">Versiones</div>
+                </div>
+                <div className="cclist">
+                  {gruposFiltrados.map(g => (
+                    <button key={g.centroCosto} className="cccard" onClick={() => abrirVersiones(g.centroCosto)}>
+                      <span className="ccnum ccf-cc">{g.centroCosto}</span>
+                      <span className="ccevento ccf-proy">{g.latest.evento || 'Sin nombre'}</span>
+                      <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
+                      <span className="ccproductor ccf-prod">{productoresDe(g.centroCosto).join(', ') || '—'}</span>
+                      <span className="ccbadge">{g.versions.length} {g.versions.length === 1 ? 'versión' : 'versiones'}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
@@ -558,20 +555,21 @@ function PptoStyles() {
 .ppto .errtxt{font-size:12px;color:#b3261e;margin-top:6px}
 .ppto .empty{background:#fff;border:1px dashed #c8cdc2;border-radius:12px;padding:40px 20px;text-align:center;color:#9aa398;font-size:14px}
 .ppto .filterbar{display:flex;gap:10px;margin-bottom:14px}
+.ppto .cclistheader{display:flex;align-items:center;gap:28px;padding:0 18px;margin-bottom:8px}
+.ppto .cclistheader>div{font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em}
+.ppto .ccheadbadge{flex-shrink:0;font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em;min-width:80px;text-align:right}
 .ppto .cclist{display:flex;flex-direction:column;gap:10px}
 .ppto .cccard{display:flex;align-items:center;gap:28px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:14px 18px;cursor:pointer;font:inherit;width:100%}
 .ppto .cccard:hover{border-color:#0e7a52;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.ppto .ccf{display:flex;flex-direction:column;gap:3px;min-width:0}
-.ppto .ccf-cc{flex:0 0 100px}
+.ppto .ccf-cc{flex:0 0 100px;min-width:0}
 .ppto .ccf-proy{flex:2;min-width:0}
 .ppto .ccf-cli{flex:1.2;min-width:0}
 .ppto .ccf-prod{flex:1.2;min-width:0}
-.ppto .cclabel{font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em}
 .ppto .ccnum{font-size:13px;font-weight:700;color:#0e7a52}
 .ppto .ccevento{font-size:14px;font-weight:600;color:#191c19;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ppto .cccliente{font-size:13px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ppto .ccproductor{font-size:13px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ppto .ccbadge{flex-shrink:0;font-size:11px;font-weight:600;color:#6d746c;background:#eef0ea;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.ppto .ccbadge{flex-shrink:0;font-size:11px;font-weight:600;color:#6d746c;background:#eef0ea;border-radius:20px;padding:3px 10px;white-space:nowrap;min-width:80px;text-align:center}
 .ppto .vlist{display:flex;flex-direction:column;gap:10px}
 .ppto .vcard{display:flex;align-items:center;gap:16px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:10px;padding:14px 16px;cursor:pointer;font:inherit;width:100%}
 .ppto .vcard:hover{border-color:#0e7a52}
