@@ -96,18 +96,24 @@ export default function PptoPage() {
     return grupos.find(g => g.centroCosto === ccKey(cc)) ?? null
   }
 
+  /* ---------- productor (Tráfico → Producción) por centro de costo ---------- */
+  function productoresDe(cc: string): string[] {
+    const proyecto = proyectos.find(p => (p.centroCosto || '').trim() === cc.trim())
+    return proyecto?.personasProduccion ?? []
+  }
+
   /* ---------- búsqueda / filtro de la landing ---------- */
   const productores = useMemo(() => {
-    const s = new Set(grupos.map(g => g.latest.director).filter(Boolean))
+    const s = new Set(grupos.flatMap(g => productoresDe(g.centroCosto)))
     return ['Todos', ...s]
-  }, [grupos])
+  }, [grupos, proyectos])
 
   const gruposFiltrados = useMemo(() => grupos.filter(g => {
     const q = searchLanding.trim().toLowerCase()
     const matchSearch = !q || g.centroCosto.toLowerCase().includes(q) || (g.latest.evento || '').toLowerCase().includes(q)
-    const matchProductor = filtroProductor === 'Todos' || g.latest.director === filtroProductor
+    const matchProductor = filtroProductor === 'Todos' || productoresDe(g.centroCosto).includes(filtroProductor)
     return matchSearch && matchProductor
-  }), [grupos, searchLanding, filtroProductor])
+  }), [grupos, searchLanding, filtroProductor, proyectos])
   const grupoSel = grupoDe(ccSel)
   const grupoActivo = active ? grupoDe(active.centroCosto) : null
 
@@ -333,7 +339,7 @@ export default function PptoPage() {
                     </div>
                     <div className="ccf ccf-prod">
                       <span className="cclabel">Productor</span>
-                      <span className="ccproductor">{g.latest.director || '—'}</span>
+                      <span className="ccproductor">{productoresDe(g.centroCosto).join(', ') || '—'}</span>
                     </div>
                     <div className="ccbadge">{g.versions.length} {g.versions.length === 1 ? 'versión' : 'versiones'}</div>
                   </button>
