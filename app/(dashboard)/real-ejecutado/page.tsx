@@ -114,7 +114,22 @@ export default function RealEjecutadoPage() {
     return o.valor - asignado
   }
 
-  const gastosDisponibles = useMemo(() => gastosCC.filter(o => saldoDe(o) > 0), [gastosCC, realSel])
+  // Solo Órdenes de compra se asignan fila por fila. Compra con tarjeta y Anticipos
+  // se toman como un total automático del centro de costo (ver totalTarjeta/totalAnticipos
+  // más abajo), así que no aparecen como opción para asignar a una fila puntual.
+  const gastosDisponibles = useMemo(
+    () => gastosCC.filter(o => o.modalidad === 'Orden de compra' && saldoDe(o) > 0),
+    [gastosCC, realSel],
+  )
+
+  const totalTarjeta = useMemo(
+    () => gastosCC.filter(o => o.modalidad === 'Compra con tarjeta').reduce((s, o) => s + o.valor, 0),
+    [gastosCC],
+  )
+  const totalAnticipos = useMemo(
+    () => gastosCC.filter(o => o.modalidad === 'Anticipo').reduce((s, o) => s + o.valor, 0),
+    [gastosCC],
+  )
 
   /* ---------- navegación ---------- */
   function volverALanding() { setVista('landing'); setCcSel(''); setAsignarRowId(null) }
@@ -324,6 +339,8 @@ export default function RealEjecutadoPage() {
         </div>
         <div className="rescard">
           <h3>Real ejecutado</h3>
+          <div className="kv"><span>Compra con tarjeta</span><span className="num">{money(totalTarjeta)}</span></div>
+          <div className="kv"><span>Anticipos solicitados</span><span className="num">{money(totalAnticipos)}</span></div>
           <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
           <div className="kv"><span>Utilidad real</span><span className="num">{money(t.utilReal)}</span></div>
           <div className="bigpct num" style={{ color: utilColor(t.pctReal) }}>{isFinite(t.pctReal) ? (t.pctReal * 100).toFixed(1).replace('.', ',') + ' %' : '—'}</div>
