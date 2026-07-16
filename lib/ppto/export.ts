@@ -71,7 +71,7 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
   b.rows.forEach((r, i) => {
     const x = first + i
     const row = ws.getRow(x)
-    row.getCell(1).value = r.proceso || ""
+    row.getCell(1).value = (r.proceso || "").toUpperCase()
     row.getCell(2).value = r.item || ""
     row.getCell(3).value = r.costoUnd || 0
     row.getCell(4).value = r.cant || 0
@@ -103,8 +103,8 @@ export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant 
   // combinar grupos consecutivos de PROCESO
   let g0 = 0
   for (let i = 1; i <= b.rows.length; i++) {
-    const cur = i < b.rows.length ? (b.rows[i].proceso || "") : null
-    const prev = b.rows[g0].proceso || ""
+    const cur = i < b.rows.length ? (b.rows[i].proceso || "").toUpperCase() : null
+    const prev = (b.rows[g0].proceso || "").toUpperCase()
     if (cur !== prev || i === b.rows.length) {
       if (i - g0 > 1 && prev) ws.mergeCells(first + g0, 1, first + i - 1, 1)
       g0 = i
@@ -256,9 +256,10 @@ export function buildBasicBlob(b: PptoBudget, variant: PptoExportVariant = 'cost
     : ["PROCESO", "ÍTEM", "COSTO UNIDAD", "CANTIDAD", "DÍAS", "COSTO TOTAL", "", "VENTA SUGERIDA", "COSTO REAL UND", "COSTO REAL TOTAL", "", "COSTO TOTAL ORDENADO", "PROVEEDOR"]
   const first = 12
   b.rows.forEach(r => {
+    const proceso = (r.proceso || "").toUpperCase()
     aoa.push(soloCliente
-      ? [r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0]
-      : [r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0, "", 0, r.costoRealUnd || 0, 0, "", r.ordenado || 0, r.proveedor || ""])
+      ? [proceso, r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0]
+      : [proceso, r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0, "", 0, r.costoRealUnd || 0, 0, "", r.ordenado || 0, r.proveedor || ""])
   })
   const last = first + b.rows.length - 1, T = last + 1
   const ws = XLSX.utils.aoa_to_sheet(aoa)
