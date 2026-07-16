@@ -307,5 +307,5 @@ export function buildBasicBlob(b: PptoBudget, variant: PptoExportVariant = 'cost
 }
 
 export const exportName = (b: PptoBudget, variant: PptoExportVariant = 'costos') =>
-  ("PPTO_" + (b.centroCosto || "SC") + "_" + (b.evento || "presupuesto") + "_V" + (b.version || 1) + "_" + (variant === 'cliente' ? "Cliente" : "Costos"))
+  ("PPTO_" + (b.centroCosto || "SC") + "_" + (b.evento || "presupuesto") + "_V" + (b.version || 1) + "_" + (variant === 'cliente' ? "CL" : "Costos"))
     .replace(/\s+/g, "_").replace(/_+$/, "") + ".xlsx"
