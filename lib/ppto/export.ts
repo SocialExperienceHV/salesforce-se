@@ -23,7 +23,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet("PPTO " + (b.cliente || "").slice(0, 20))
-  const widths = [22.2, 96.2, 15.3, 14.2, 12.2, 21.5, 10.5, 16.5, 14, 16.5, 10.5, 16.5, 29.7]
+  const widths = [22.2, 70.7, 15.3, 14.2, 12.2, 21.5, 10.5, 16.5, 14, 16.5, 10.5, 16.5, 29.7]
   ws.columns = widths.map(w => ({ width: w }))
 
   const imgId = wb.addImage({ base64: LOGO_B64, extension: "png" })
@@ -278,7 +278,7 @@ export function buildBasicBlob(b: PptoBudget): Blob {
   const ref = XLSX.utils.decode_range(ws["!ref"] as string)
   ref.e.r = Math.max(ref.e.r, T + 11); ref.e.c = Math.max(ref.e.c, 12)
   ws["!ref"] = XLSX.utils.encode_range(ref)
-  ws["!cols"] = [{ wch: 22 }, { wch: 80 }, { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
+  ws["!cols"] = [{ wch: 22 }, { wch: 70.7 }, { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
   XLSX.utils.book_append_sheet(wb, ws, "PPTO")
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" })
   return new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
