@@ -265,6 +265,12 @@ export default function RealEjecutadoPage() {
   /* ==================== EDITOR ==================== */
   if (!realSel || !budgetSel) return <div className="realej"><Styles /></div>
   const t = calcTotals(budgetSel)
+  // La utilidad real del módulo debe descontar TODO el gasto real: órdenes de
+  // compra asignadas por fila (t.ordenado) + compra con tarjeta + anticipos, no
+  // solo lo ordenado (que es lo único que entra en calcTotals/PPTO).
+  const costoRealCompleto = t.ordenado + totalTarjeta + totalAnticipos
+  const utilRealCompleta = t.totalAntesIva - costoRealCompleto
+  const pctRealCompleto = t.totalAntesIva ? utilRealCompleta / t.totalAntesIva : NaN
 
   return (
     <div className="realej">
@@ -342,9 +348,9 @@ export default function RealEjecutadoPage() {
           <div className="kv"><span>Compra con tarjeta</span><span className="num">{money(totalTarjeta)}</span></div>
           <div className="kv"><span>Anticipos solicitados</span><span className="num">{money(totalAnticipos)}</span></div>
           <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
-          <div className="kv"><span>Utilidad real</span><span className="num">{money(t.utilReal)}</span></div>
-          <div className="bigpct num" style={{ color: utilColor(t.pctReal) }}>{isFinite(t.pctReal) ? (t.pctReal * 100).toFixed(1).replace('.', ',') + ' %' : '—'}</div>
-          <div className="bar"><i style={{ width: Math.max(0, Math.min(100, (t.pctReal || 0) * 100)) + '%', background: utilColor(t.pctReal) }}></i></div>
+          <div className="kv total"><span>Utilidad real</span><span className="num">{money(utilRealCompleta)}</span></div>
+          <div className="bigpct num" style={{ color: utilColor(pctRealCompleto) }}>{isFinite(pctRealCompleto) ? (pctRealCompleto * 100).toFixed(1).replace('.', ',') + ' %' : '—'}</div>
+          <div className="bar"><i style={{ width: Math.max(0, Math.min(100, (pctRealCompleto || 0) * 100)) + '%', background: utilColor(pctRealCompleto) }}></i></div>
         </div>
       </div>
 
