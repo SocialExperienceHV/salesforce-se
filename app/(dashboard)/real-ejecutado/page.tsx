@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import {
-  type PptoBudget, fmt, money, calcTotals, calcRow, utilColor,
+  type PptoBudget, type PptoRow, fmt, money, calcTotals, calcRow, utilColor, mkRow, parseNum,
 } from '@/lib/ppto/calculations'
 import {
   getOrdenesGespro, getProveedoresGespro, nombreProveedorGespro,
@@ -185,6 +185,32 @@ export default function RealEjecutadoPage() {
     await actualizarOrdenadoFila(budgetSel, asig.rowId, totalFila)
   }
 
+  /* ---------- filas adicionales (gasto real que no estaba en el PPTO inicial) ---------- */
+  async function actualizarFila(rowId: string, patch: Partial<PptoRow>) {
+    if (!budgetSel) return
+    const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.map(r => r.id === rowId ? { ...r, ...patch } : r) }
+    setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
+    await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
+  }
+
+  async function agregarFilaAdicional() {
+    if (!budgetSel) return
+    const nueva: PptoRow = { ...mkRow('ADICIONALES', '', 0, 1, 1, 0, 0, ''), adicional: true }
+    const actualizado: PptoBudget = { ...budgetSel, rows: [...budgetSel.rows, nueva] }
+    setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
+    await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
+  }
+
+  async function eliminarFilaAdicional(rowId: string) {
+    if (!budgetSel) return
+    const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.filter(r => r.id !== rowId) }
+    setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
+    await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
+    if (realSel && realSel.asignaciones.some(a => a.rowId === rowId)) {
+      await persistirReal({ ...realSel, asignaciones: realSel.asignaciones.filter(a => a.rowId !== rowId) })
+    }
+  }
+
   if (loading) {
     return <div className="realej"><Styles /><div style={{ padding: 40, color: '#9aa398', fontSize: 14 }}>Cargando...</div></div>
   }
@@ -303,12 +329,32 @@ export default function RealEjecutadoPage() {
               const asigsFila = realSel.asignaciones.filter(a => a.rowId === r.id)
               const totalFila = asigsFila.reduce((s, a) => s + a.monto, 0)
               return (
-                <tr key={r.id}>
-                  <td className="col-proc">{r.proceso}</td>
-                  <td className="col-item">{r.item}</td>
-                  <td className="r">{fmt(r.costoUnd)}</td>
-                  <td className="r">{r.cant}</td>
-                  <td className="r">{r.dias}</td>
+                <tr key={r.id} className={r.adicional ? 'fila-adicional' : ''}>
+                  <td className="col-proc">
+                    {r.adicional
+                      ? <input className="in-inline" value={r.proceso} onChange={e => actualizarFila(r.id, { proceso: e.target.value })} />
+                      : r.proceso}
+                  </td>
+                  <td className="col-item">
+                    {r.adicional
+                      ? <input className="in-inline" placeholder="Descripción del gasto" value={r.item} onChange={e => actualizarFila(r.id, { item: e.target.value })} />
+                      : r.item}
+                  </td>
+                  <td className="r">
+                    {r.adicional
+                      ? <input className="in-inline r" placeholder="0" value={r.costoUnd || ''} onChange={e => actualizarFila(r.id, { costoUnd: parseNum(e.target.value) })} />
+                      : fmt(r.costoUnd)}
+                  </td>
+                  <td className="r">
+                    {r.adicional
+                      ? <input className="in-inline r small" value={r.cant || ''} onChange={e => actualizarFila(r.id, { cant: parseNum(e.target.value) })} />
+                      : r.cant}
+                  </td>
+                  <td className="r">
+                    {r.adicional
+                      ? <input className="in-inline r small" value={r.dias || ''} onChange={e => actualizarFila(r.id, { dias: parseNum(e.target.value) })} />
+                      : r.dias}
+                  </td>
                   <td className="r calc">{fmt(c.costoTotal)}</td>
                   <td className="ordenadocell">
                     <div className="ordenadototal">{fmt(totalFila)}</div>
@@ -322,7 +368,10 @@ export default function RealEjecutadoPage() {
                         </div>
                       )
                     })}
-                    <button className="addasig" onClick={() => setAsignarRowId(r.id)}>+ Asignar gasto</button>
+                    <div className="filaacciones">
+                      <button className="addasig" onClick={() => setAsignarRowId(r.id)}>+ Asignar gasto</button>
+                      {r.adicional && <button className="quitarfila" onClick={() => eliminarFilaAdicional(r.id)}>Quitar fila</button>}
+                    </div>
                   </td>
                 </tr>
               )
@@ -337,6 +386,7 @@ export default function RealEjecutadoPage() {
           </tfoot>
         </table>
       </div>
+      <button className="addfila" onClick={agregarFilaAdicional}>+ Agregar fila adicional</button>
 
       <div className="resumen">
         <div className="rescard">
@@ -452,6 +502,18 @@ function Styles() {
 .realej .asigx:hover{color:#b3261e}
 .realej .addasig{border:1px dashed #c8cdc2;background:#fff;color:#0e7a52;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer}
 .realej .addasig:hover{border-color:#0e7a52;background:#f2f8f4}
+.realej .filaacciones{display:flex;gap:6px;flex-wrap:wrap}
+.realej .quitarfila{border:none;background:none;color:#b91c1c;font-size:11px;font-weight:600;cursor:pointer;padding:4px 2px}
+.realej .quitarfila:hover{text-decoration:underline}
+.realej .fila-adicional{background:#FEF2F2}
+.realej .fila-adicional td{color:#B91C1C}
+.realej .fila-adicional .col-proc{color:#B91C1C}
+.realej .fila-adicional .calc{color:#B91C1C}
+.realej .in-inline{width:100%;border:1px solid #fecaca;border-radius:6px;padding:5px 7px;font:inherit;font-size:12px;background:#fff;color:#B91C1C;box-sizing:border-box}
+.realej .in-inline.r{text-align:right}
+.realej .in-inline.small{max-width:50px}
+.realej .addfila{margin:10px 0 0;border:1px dashed #fca5a5;background:#fff;color:#B91C1C;border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.realej .addfila:hover{border-color:#b91c1c;background:#FEF2F2}
 .realej tfoot td{background:#7f7f7f;color:#fff;font-weight:700;border-top:2px solid #666}
 .realej .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:700px}
 .realej .rescard{background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:14px 16px}

@@ -11,6 +11,9 @@ export type PptoRow = {
   costoRealUnd: number
   ordenado: number
   proveedor: string
+  // Fila agregada desde Real Ejecutado para un gasto real que no estaba en el
+  // presupuesto inicial (no viene del PPTO original, ej. proceso "ADICIONALES").
+  adicional?: boolean
 }
 
 export type PptoBudget = {
