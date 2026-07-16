@@ -36,7 +36,7 @@ function formatFechaCorta(iso: string) {
 }
 
 export default function RealEjecutadoPage() {
-  const { tarjetasCorp } = useStore()
+  const { tarjetasCorp, proyectos } = useStore()
   const [budgets, setBudgets] = useState<PptoBudget[]>([])
   const [reales, setReales] = useState<RealEjecutado[]>([])
   const [ordenes, setOrdenes] = useState<OrdenGespro[]>([])
@@ -91,7 +91,14 @@ export default function RealEjecutadoPage() {
   const budgetSel = realSel ? budgets.find(b => b.id === realSel.pptoId) ?? null : null
 
   /* ---------- gastos de Gespro para el centro de costo activo ---------- */
-  const gastosCC = useMemo(() => ordenes.filter(o => ccKey(o.centroCosto) === ccSel), [ordenes, ccSel])
+  // Se relaciona por proyectoId (fuente confiable) y no solo por el centroCosto guardado
+  // en la orden, porque ese campo queda como una foto del momento en que se creó la
+  // orden en Gespro y puede quedar desactualizado si el centro de costo del proyecto
+  // cambió después en Calendar 2.0.
+  const gastosCC = useMemo(() => {
+    const proyectoIdsDelCC = new Set(proyectos.filter(p => ccKey(p.centroCosto || '') === ccSel).map(p => p.id))
+    return ordenes.filter(o => proyectoIdsDelCC.has(o.proyectoId) || ccKey(o.centroCosto) === ccSel)
+  }, [ordenes, proyectos, ccSel])
 
   function nombreGasto(o: OrdenGespro): string {
     if (o.modalidad === 'Orden de compra') return `#${o.numeroOrden} · ${nombreProveedorGespro(proveedores.find(p => p.id === o.proveedorId))}`

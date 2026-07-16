@@ -10,6 +10,7 @@ export type ModalidadGastoGespro = 'Orden de compra' | 'Compra con tarjeta' | 'A
 export type OrdenGespro = {
   id: string
   numeroOrden: number
+  proyectoId: string
   centroCosto: string
   nombreProyecto: string
   modalidad: ModalidadGastoGespro
