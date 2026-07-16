@@ -36,7 +36,7 @@ function formatFechaCorta(iso: string) {
 }
 
 export default function RealEjecutadoPage() {
-  const { tarjetasCorp, proyectos } = useStore()
+  const { tarjetasCorp, proyectos, legalizaciones } = useStore()
   const [budgets, setBudgets] = useState<PptoBudget[]>([])
   const [reales, setReales] = useState<RealEjecutado[]>([])
   const [ordenes, setOrdenes] = useState<OrdenGespro[]>([])
@@ -129,10 +129,20 @@ export default function RealEjecutadoPage() {
     () => gastosCC.filter(o => o.modalidad === 'Compra con tarjeta').reduce((s, o) => s + o.valor, 0),
     [gastosCC],
   )
-  const totalAnticipos = useMemo(
+  // Anticipos "solicitados" en Gespro = anticipos creados directo en el módulo
+  // Ordenes de Gespro + los gastos de Legalizaciones de Calendar 2.0 que apliquen
+  // a este centro de costo (mismo criterio que usa la vista de Gespro: suma
+  // gastos[].total de cada legalización, no el campo "anticipo" en sí).
+  const totalAnticipoGespro = useMemo(
     () => gastosCC.filter(o => o.modalidad === 'Anticipo').reduce((s, o) => s + o.valor, 0),
     [gastosCC],
   )
+  const totalAnticipoLegalizaciones = useMemo(() => {
+    return legalizaciones
+      .filter(l => (l.gastos ?? []).some(g => ccKey(g.centroCosto) === ccSel) || ccKey(l.centroCosto) === ccSel)
+      .reduce((s, l) => s + (l.gastos ?? []).reduce((s2, g) => s2 + (g.total ?? 0), 0), 0)
+  }, [legalizaciones, ccSel])
+  const totalAnticipos = totalAnticipoGespro + totalAnticipoLegalizaciones
 
   /* ---------- navegación ---------- */
   function volverALanding() { setVista('landing'); setCcSel(''); setAsignarRowId(null) }
