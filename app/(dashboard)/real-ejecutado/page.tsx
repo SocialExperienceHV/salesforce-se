@@ -100,8 +100,11 @@ export default function RealEjecutadoPage() {
     return ordenes.filter(o => proyectoIdsDelCC.has(o.proyectoId) || ccKey(o.centroCosto) === ccSel)
   }, [ordenes, proyectos, ccSel])
 
-  function nombreGasto(o: OrdenGespro): string {
-    if (o.modalidad === 'Orden de compra') return `#${o.numeroOrden} · ${nombreProveedorGespro(proveedores.find(p => p.id === o.proveedorId))}`
+  function nombreGasto(o: OrdenGespro, incluirNumero = true): string {
+    if (o.modalidad === 'Orden de compra') {
+      const proveedor = nombreProveedorGespro(proveedores.find(p => p.id === o.proveedorId))
+      return incluirNumero ? `#${o.numeroOrden} · ${proveedor}` : proveedor
+    }
     if (o.modalidad === 'Compra con tarjeta') {
       const t = tarjetasCorp.find(t => t.id === o.tarjetaId)
       return t ? `Tarjeta ${t.nombre ?? ''} •••• ${t.ultimos4}`.trim() : 'Compra con tarjeta'
@@ -313,8 +316,7 @@ export default function RealEjecutadoPage() {
                       const o = ordenes.find(x => x.id === a.gastoId)
                       return (
                         <div key={a.id} className="asigchip">
-                          <span className="asigmod">{a.modalidad}</span>
-                          <span className="asignom">{o ? nombreGasto(o) : 'Gasto eliminado'}</span>
+                          <span className="asignom">{o ? nombreGasto(o, false) : 'Gasto eliminado'}</span>
                           <span className="asigmonto">{fmt(a.monto)}</span>
                           <button className="asigx" onClick={() => quitarAsignacion(a.id)} title="Quitar">✕</button>
                         </div>
@@ -444,7 +446,6 @@ function Styles() {
 .realej .ordenadocell{min-width:260px}
 .realej .ordenadototal{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-weight:700;font-size:14px;color:#191c19;margin-bottom:6px}
 .realej .asigchip{display:flex;align-items:center;gap:6px;background:#f7f9f3;border:1px solid #e6e9e1;border-radius:8px;padding:4px 8px;margin-bottom:4px;font-size:11px}
-.realej .asigmod{color:#6d746c;flex-shrink:0}
 .realej .asignom{flex:1;color:#191c19;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .realej .asigmonto{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#0e7a52;font-weight:700;flex-shrink:0}
 .realej .asigx{border:none;background:none;color:#b0b6ad;cursor:pointer;font-size:11px;padding:0 2px;flex-shrink:0}
