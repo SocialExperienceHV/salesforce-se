@@ -26,6 +26,8 @@ export type PptoBudget = {
   agenciaPct: number
   margenPct: number
   rows: PptoRow[]
+  version: number
+  createdAt: string
 }
 
 /* ---------- helpers ---------- */
@@ -41,38 +43,11 @@ export const mkRow = (
   costoRealUnd: number, ordenado: number, proveedor: string,
 ): PptoRow => ({ id: uid(), proceso, item, costoUnd, cant, dias, costoRealUnd, ordenado, proveedor })
 
-export const seedRows = (): PptoRow[] => [
-  mkRow('ESCENOGRAFIA', 'Piso en PVC laminado tipo click color gris. Módulo exhibidor y módulo central en MDF, acabados, montaje, desmontaje y transporte', 41520000, 1, 1, 19000000, 19000000, 'TU MARCA'),
-  mkRow('TECNICA', 'Interactivos credelio dog experiencia AR, escultura a escala y tablet', 3970000, 1, 1, 2200000, 7100000, 'CARLOS TELLO'),
-  mkRow('TECNICA', 'Interactivos credelio plus NFC con lector de códigos y programación de pantalla', 4860000, 1, 1, 2100000, 0, ''),
-  mkRow('TECNICA', 'Interactivo cat experiencia pantalla táctil', 3600000, 1, 1, 1200000, 0, ''),
-  mkRow('TECNICA', 'Interactivo experiencia penaltis', 0, 0, 0, 0, 0, ''),
-  mkRow('MOBILIARIO', 'Escultura de mascota a escala', 1250000, 1, 1, 380000, 0, ''),
-  mkRow('ALQUILER', 'Alquiler de juegos de sala, sillas y mesa según propuesta', 440000, 2, 1, 405000, 0, ''),
-  mkRow('OTRO', 'Pantalla aérea LED de pitch 2,9 de 3,00 mt x 1,00 mt - 12 mt2 - estructura a 4 caras y procesador', 3800000, 1, 3, 5414000, 16242800, 'IDEALO'),
-  mkRow('OTRO', 'Truss central en forma de cuadro para soporte de cubo', 480000, 1, 3, 0, 0, ''),
-  mkRow('OTRO', 'Puesto fijo central', 420000, 1, 3, 0, 2325135, 'TC'),
-  mkRow('OTRO', 'Punto de anclaje aéreo de 4 motores y trabajo de alturas', 760000, 1, 2, 0, 1367010, 'ANT'),
-  mkRow('OTRO', 'Coordinador de alturas - requerimiento locación para trabajo en alturas (montaje y desmontaje)', 380000, 1, 2, 0, 0, ''),
-  mkRow('OTRO', 'Horas adicionales servicio de grúa de 10 mts', 0, 0, 0, 0, 0, ''),
-  mkRow('OPERACIÓN', 'Productor 360', 380000, 1, 4, 0, 0, ''),
-  mkRow('OPERACIÓN', 'Personal promotores jornada 12 horas', 320000, 3, 3, 194000, 4378200, 'LA EMPRESA'),
-  mkRow('OPERACIÓN', 'Personal botargas jornada 12 horas', 0, 0, 0, 0, 0, ''),
-  mkRow('OPERACIÓN', 'Tiquetes aéreos productor - Bogotá Medellín Bogotá', 250000, 1, 2, 0, 0, ''),
-  mkRow('OPERACIÓN', 'Hidratación 10 pacas de agua', 0, 0, 0, 0, 0, ''),
-  mkRow('OPERACIÓN', 'Uniformes promotores', 120000, 3, 1, 40000, 0, ''),
-]
-
-export const seedBudget = (): PptoBudget => ({
-  id: uid(), centroCosto: '1529', cliente: 'ELANCO',
-  evento: 'STAND CREDELIO VET TECH 2026', fecha: '12 de abril', ciudad: 'BOGOTA',
-  director: 'HANS VARGAS', formaPago: '30 DÍAS', validez: '15 DÍAS', agenciaPct: 10, margenPct: 35, rows: seedRows(),
-})
-
-export const emptyBudget = (): PptoBudget => ({
-  id: uid(), centroCosto: '', cliente: '', evento: 'Nuevo presupuesto',
+export const emptyBudget = (overrides?: Partial<PptoBudget>): PptoBudget => ({
+  id: uid(), centroCosto: '', cliente: '', evento: '',
   fecha: '', ciudad: '', director: '', formaPago: '30 DÍAS', validez: '15 DÍAS', agenciaPct: 10, margenPct: 35,
-  rows: [mkRow('', '', 0, 1, 1, 0, 0, '')],
+  rows: [], version: 1, createdAt: new Date().toISOString(),
+  ...overrides,
 })
 
 export const normalize = (b: Partial<PptoBudget>): PptoBudget => Object.assign(emptyBudget(), b,

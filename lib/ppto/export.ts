@@ -285,4 +285,5 @@ export function buildBasicBlob(b: PptoBudget): Blob {
 }
 
 export const exportName = (b: PptoBudget) =>
-  ("PPTO_" + (b.cliente || "presupuesto") + "_" + (b.centroCosto || "")).replace(/\s+/g, "_").replace(/_+$/, "") + ".xlsx"
+  ("PPTO_" + (b.centroCosto || "SC") + "_" + (b.evento || "presupuesto") + "_V" + (b.version || 1))
+    .replace(/\s+/g, "_").replace(/_+$/, "") + ".xlsx"

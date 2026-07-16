@@ -3,14 +3,20 @@
 // Módulo PPTO — herramienta de presupuestos de Social Experience.
 // Lógica de cálculo y exportación a Excel: lib/ppto/calculations.ts y lib/ppto/export.ts
 // (portadas VERBATIM desde presupuestos.html). Persistencia: tabla Supabase `presupuestos`
-// (patrón JSON-blob {id, data}) con guardado debounced e indicador "Guardado ✓".
+// (patrón JSON-blob {id, data}).
+//
+// Navegación: Landing (todos los centros de costo) → Versiones (todas las versiones de un
+// centro de costo) → Editor (la grilla de un presupuesto puntual). El guardado es manual
+// ("Guardar"): si el presupuesto ya existía, siempre pregunta si sobrescribir la versión
+// actual o crear una nueva (V1, V2, V3...).
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useStore } from '@/lib/store'
 import {
   type PptoBudget, type PptoRow,
   fmt, money, pctFmt, parseNum, uid, mkRow,
-  seedBudget, emptyBudget, normalize, calcRow, calcTotals, utilColor,
+  emptyBudget, normalize, calcRow, calcTotals, utilColor,
 } from '@/lib/ppto/calculations'
 import { buildStyledBlob, buildBasicBlob, exportName } from '@/lib/ppto/export'
 
@@ -25,71 +31,94 @@ const META_FIELDS: [keyof PptoBudget, string, boolean][] = [
   ['validez', 'Validez de la oferta', false],
 ]
 
+type Vista = 'landing' | 'versiones' | 'editor'
+
+function nombreArchivo(b: PptoBudget) {
+  return `PPTO_${b.centroCosto || 'SC'}_${b.evento || 'presupuesto'}_V${b.version || 1}`
+}
+function formatFechaCorta(iso: string) {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+function ccKey(cc: string) {
+  return (cc || '').trim() || 'Sin centro de costo'
+}
+
 export default function PptoPage() {
+  const { proyectos } = useStore()
   const [budgets, setBudgets] = useState<PptoBudget[]>([])
-  const [activeId, setActiveId] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [saveState, setSaveState] = useState('Guardado ✓')
+  const [vista, setVista] = useState<Vista>('landing')
+  const [ccSel, setCcSel] = useState('')
+  const [activeId, setActiveId] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+  const [showSaveChoice, setShowSaveChoice] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [dl, setDl] = useState<{ url: string; name: string } | null>(null)
   const [avisoBasico, setAvisoBasico] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [nuevoCcInput, setNuevoCcInput] = useState('')
+  const [nuevoCcError, setNuevoCcError] = useState('')
 
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const budgetsRef = useRef<PptoBudget[]>([])
-  const activeIdRef = useRef<string>('')
-  budgetsRef.current = budgets
-  activeIdRef.current = activeId
-
-  const active = useMemo(() => budgets.find(b => b.id === activeId) ?? budgets[0], [budgets, activeId])
+  const active = useMemo(() => budgets.find(b => b.id === activeId) ?? null, [budgets, activeId])
 
   /* ---------- carga inicial ---------- */
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from('presupuestos').select('data')
-      let list = (data ?? []).map((r: { data: Partial<PptoBudget> }) => normalize(r.data))
-      if (list.length === 0) {
-        const s = seedBudget()
-        await supabase.from('presupuestos').insert({ id: s.id, data: s })
-        list = [s]
-      }
+      const list = (data ?? []).map((r: { data: Partial<PptoBudget> }) => normalize(r.data))
       setBudgets(list)
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('ppto-active-id') : null
-      setActiveId(stored && list.find(b => b.id === stored) ? stored : list[0].id)
       setLoading(false)
     })()
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [])
 
-  useEffect(() => { if (activeId) localStorage.setItem('ppto-active-id', activeId) }, [activeId])
+  /* ---------- agrupación por centro de costo ---------- */
+  const grupos = useMemo(() => {
+    const map = new Map<string, PptoBudget[]>()
+    budgets.forEach(b => {
+      const cc = ccKey(b.centroCosto)
+      if (!map.has(cc)) map.set(cc, [])
+      map.get(cc)!.push(b)
+    })
+    return [...map.entries()].map(([centroCosto, versions]) => {
+      const sorted = [...versions].sort((a, b) => b.version - a.version)
+      return { centroCosto, versions: sorted, latest: sorted[0] }
+    }).sort((a, b) => a.centroCosto.localeCompare(b.centroCosto, 'es'))
+  }, [budgets])
 
-  /* ---------- descarga / guardado ---------- */
+  function grupoDe(cc: string) {
+    return grupos.find(g => g.centroCosto === ccKey(cc)) ?? null
+  }
+  const grupoSel = grupoDe(ccSel)
+  const grupoActivo = active ? grupoDe(active.centroCosto) : null
+
+  /* ---------- helpers de edición local (sin autoguardado) ---------- */
   function invalidarDescarga() {
     setDl(prev => { if (prev) URL.revokeObjectURL(prev.url); return null })
     setAvisoBasico(false)
   }
-
-  function scheduleSave() {
-    setSaveState('Guardando…')
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(async () => {
-      const b = budgetsRef.current.find(x => x.id === activeIdRef.current)
-      if (!b) return
-      const { error } = await supabase.from('presupuestos').upsert({ id: b.id, data: b })
-      setSaveState(error ? 'Sin guardar' : 'Guardado ✓')
-    }, 700)
-  }
-
   function mutateActive(fn: (b: PptoBudget) => PptoBudget) {
-    setBudgets(prev => prev.map(b => b.id === activeIdRef.current ? fn(b) : b))
+    setBudgets(prev => prev.map(b => b.id === activeId ? fn(b) : b))
+    setDirty(true)
     invalidarDescarga()
-    scheduleSave()
   }
-
-  /* ---------- edición meta / filas ---------- */
   const setMeta = (k: keyof PptoBudget, v: string | number) => mutateActive(b => ({ ...b, [k]: v }))
+  function setCentroCosto(v: string) {
+    mutateActive(b => {
+      const next = { ...b, centroCosto: v }
+      const match = proyectos.find(p => (p.centroCosto || '').trim() && (p.centroCosto || '').trim() === v.trim())
+      if (match) {
+        if (!next.cliente) next.cliente = match.cliente
+        if (!next.evento) next.evento = match.nombre
+        if (!next.director) next.director = match.ejecutivo
+      }
+      return next
+    })
+  }
   const setRow = (rowId: string, patch: Partial<PptoRow>) =>
     mutateActive(b => ({ ...b, rows: b.rows.map(r => r.id === rowId ? { ...r, ...patch } : r) }))
   const addRow = () => mutateActive(b => {
@@ -110,38 +139,99 @@ export default function PptoPage() {
     return { ...b, rows }
   })
 
-  /* ---------- selector / nuevo / duplicar / eliminar ---------- */
-  async function nuevo() {
-    const nb = emptyBudget()
-    setBudgets(p => [...p, nb]); setActiveId(nb.id); invalidarDescarga()
-    setSaveState('Guardando…')
-    const { error } = await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
-    setSaveState(error ? 'Sin guardar' : 'Guardado ✓')
+  /* ---------- navegación ---------- */
+  function volverALanding() { setVista('landing'); setCcSel(''); setActiveId(''); setDirty(false) }
+  function abrirVersiones(cc: string) { setCcSel(ccKey(cc)); setActiveId(''); setDirty(false); setVista('versiones') }
+  function abrirEditor(id: string) { setActiveId(id); setDirty(false); invalidarDescarga(); setVista('editor') }
+  function volverAVersiones() {
+    if (!active) { volverALanding(); return }
+    abrirVersiones(active.centroCosto)
   }
-  async function duplicar() {
+
+  // Guardas de navegación: si el grupo/documento activo desaparece (p.ej. tras eliminar),
+  // redirige a una vista válida en vez de romper el render.
+  useEffect(() => {
+    if (vista === 'versiones' && !grupoSel) volverALanding()
+    if (vista === 'editor' && !active) volverALanding()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista, grupoSel, active])
+
+  /* ---------- crear nuevo presupuesto (V1 de un centro de costo) ---------- */
+  async function crearNuevo() {
+    const cc = nuevoCcInput.trim()
+    if (!cc) { setNuevoCcError('Ingresa un centro de costo.'); return }
+    const existente = grupoDe(cc)
+    if (existente) {
+      setNuevoCcInput(''); setNuevoCcError('')
+      abrirVersiones(cc)
+      return
+    }
+    const match = proyectos.find(p => (p.centroCosto || '').trim() === cc)
+    const nb = emptyBudget({
+      centroCosto: cc,
+      cliente: match?.cliente ?? '',
+      evento: match?.nombre ?? '',
+      director: match?.ejecutivo ?? '',
+      version: 1,
+    })
+    setBudgets(prev => [...prev, nb])
+    await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
+    setNuevoCcInput(''); setNuevoCcError('')
+    abrirEditor(nb.id)
+  }
+
+  /* ---------- nueva versión en blanco desde la lista de versiones ---------- */
+  async function nuevaVersionEnBlanco() {
+    if (!grupoSel) return
+    const base = grupoSel.latest
+    const nextVersion = Math.max(...grupoSel.versions.map(v => v.version)) + 1
+    const nb = emptyBudget({
+      centroCosto: base.centroCosto, cliente: base.cliente, evento: base.evento,
+      director: base.director, ciudad: base.ciudad, formaPago: base.formaPago, validez: base.validez,
+      agenciaPct: base.agenciaPct, margenPct: base.margenPct, version: nextVersion,
+    })
+    setBudgets(prev => [...prev, nb])
+    await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
+    abrirEditor(nb.id)
+  }
+
+  /* ---------- guardar (siempre pregunta si el documento ya existía) ---------- */
+  function guardar() { if (active) setShowSaveChoice(true) }
+
+  async function confirmarSobrescribir() {
     if (!active) return
-    const nb: PptoBudget = JSON.parse(JSON.stringify(active))
-    nb.id = uid(); nb.evento += ' (copia)'; nb.rows.forEach(r => r.id = uid())
-    setBudgets(p => [...p, nb]); setActiveId(nb.id); invalidarDescarga()
-    setSaveState('Guardando…')
-    const { error } = await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
-    setSaveState(error ? 'Sin guardar' : 'Guardado ✓')
+    setShowSaveChoice(false)
+    setSaveMsg('Guardando…')
+    const { error } = await supabase.from('presupuestos').update({ data: active }).eq('id', active.id)
+    setDirty(false)
+    setSaveMsg(error ? 'Sin guardar' : `Guardado · V${active.version}`)
   }
+  async function confirmarNuevaVersion() {
+    if (!active) return
+    setShowSaveChoice(false)
+    const nextVersion = grupoActivo ? Math.max(...grupoActivo.versions.map(v => v.version)) + 1 : active.version + 1
+    const nb: PptoBudget = { ...JSON.parse(JSON.stringify(active)), id: uid(), version: nextVersion, createdAt: new Date().toISOString() }
+    setSaveMsg('Guardando…')
+    const { error } = await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
+    setBudgets(prev => [...prev, nb])
+    setActiveId(nb.id)
+    setDirty(false)
+    setSaveMsg(error ? 'Sin guardar' : `Guardado · V${nb.version}`)
+  }
+
+  /* ---------- eliminar ---------- */
   async function eliminar() {
     if (!active) return
     if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 3500); return }
     const delId = active.id
-    const rest = budgets.filter(b => b.id !== delId)
+    const cc = ccKey(active.centroCosto)
     setConfirmDel(false); invalidarDescarga()
     await supabase.from('presupuestos').delete().eq('id', delId)
-    if (rest.length === 0) {
-      const nb = emptyBudget()
-      setBudgets([nb]); setActiveId(nb.id)
-      await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
-    } else {
-      setBudgets(rest); setActiveId(rest[0].id)
-    }
-    setSaveState('Guardado ✓')
+    const rest = budgets.filter(b => b.id !== delId)
+    setBudgets(rest)
+    const quedan = rest.some(b => ccKey(b.centroCosto) === cc)
+    if (quedan) { setActiveId(''); setCcSel(cc); setDirty(false); setVista('versiones') }
+    else volverALanding()
   }
 
   /* ---------- exportación ---------- */
@@ -155,7 +245,7 @@ export default function PptoPage() {
       try { blob = buildBasicBlob(active); basico = true } catch (e2) { console.error(e2) }
     }
     setExporting(false)
-    if (!blob) { setSaveState('Error al exportar'); return }
+    if (!blob) { setSaveMsg('Error al exportar'); return }
     const url = URL.createObjectURL(blob)
     const name = exportName(active)
     setDl({ url, name }); setAvisoBasico(basico)
@@ -166,29 +256,110 @@ export default function PptoPage() {
     } catch { /* queda el botón azul */ }
   }
 
-  if (loading || !active) {
-    return <div className="ppto"><div style={{ padding: 40, color: '#9aa398', fontSize: 14 }}>Cargando presupuestos…</div></div>
+  if (loading) {
+    return <div className="ppto"><PptoStyles /><div style={{ padding: 40, color: '#9aa398', fontSize: 14 }}>Cargando presupuestos…</div></div>
   }
 
+  /* ==================== LANDING: todos los centros de costo ==================== */
+  if (vista === 'landing') {
+    return (
+      <div className="ppto">
+        <PptoStyles />
+        <div className="pheader">
+          <div>
+            <h1>PPTO</h1>
+            <p>Selecciona un centro de costo para ver sus presupuestos, o crea uno nuevo.</p>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginBottom: 18 }}>
+          <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: '#6d746c', marginBottom: 6 }}>
+            Nuevo presupuesto
+          </label>
+          <div className="field-inline">
+            <input className="in edit" placeholder="Centro de costo (ej. 1529)" value={nuevoCcInput}
+              onChange={e => { setNuevoCcInput(e.target.value); setNuevoCcError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') crearNuevo() }} />
+            <button className="tb primary" onClick={crearNuevo}>+ Nuevo presupuesto</button>
+          </div>
+          {nuevoCcError && <div className="errtxt">{nuevoCcError}</div>}
+          <div className="hint">Si el centro de costo coincide con un proyecto en Vendidos, se autocompletan cliente, evento y director.</div>
+        </div>
+
+        {grupos.length === 0 ? (
+          <div className="empty">Aún no hay presupuestos. Crea el primero arriba.</div>
+        ) : (
+          <div className="cclist">
+            {grupos.map(g => (
+              <button key={g.centroCosto} className="cccard" onClick={() => abrirVersiones(g.centroCosto)}>
+                <div className="ccnum">{g.centroCosto}</div>
+                <div className="ccinfo">
+                  <div className="ccevento">{g.latest.evento || 'Sin nombre'}</div>
+                  <div className="cccliente">{g.latest.cliente || '—'}</div>
+                </div>
+                <div className="ccbadge">{g.versions.length} {g.versions.length === 1 ? 'versión' : 'versiones'}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /* ==================== VERSIONES: todas las versiones de un CC ==================== */
+  if (vista === 'versiones') {
+    if (!grupoSel) return <div className="ppto"><PptoStyles /></div>
+    return (
+      <div className="ppto">
+        <PptoStyles />
+        <div className="breadcrumb"><button onClick={volverALanding}>PPTO</button> / {grupoSel.centroCosto}</div>
+        <div className="pheader">
+          <div>
+            <h1>{grupoSel.latest.evento || 'Sin nombre'}</h1>
+            <p>{grupoSel.latest.cliente || '—'} · Centro de costo {grupoSel.centroCosto}</p>
+          </div>
+          <button className="tb primary" onClick={nuevaVersionEnBlanco}>+ Nueva versión en blanco</button>
+        </div>
+        <div className="vlist">
+          {grupoSel.versions.map(v => {
+            const t = calcTotals(v)
+            return (
+              <button key={v.id} className="vcard" onClick={() => abrirEditor(v.id)}>
+                <div className="vnum">V{v.version}</div>
+                <div className="vinfo">
+                  <div className="vevento">{v.evento || 'Sin nombre'}</div>
+                  <div className="vfecha">Guardado {formatFechaCorta(v.createdAt)}</div>
+                </div>
+                <div className="vtotal">{money(t.totalAntesIva)}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  /* ==================== EDITOR ==================== */
+  if (!active) return <div className="ppto"><PptoStyles /></div>
   const t = calcTotals(active)
+  const nextVNum = grupoActivo ? Math.max(...grupoActivo.versions.map(v => v.version)) + 1 : active.version + 1
 
   return (
     <div className="ppto">
       <PptoStyles />
 
+      <div className="breadcrumb">
+        <button onClick={volverALanding}>PPTO</button> / <button onClick={volverAVersiones}>{active.centroCosto || 'Sin centro de costo'}</button> / V{active.version}
+      </div>
+
       {/* Toolbar */}
       <div className="toolbar">
-        <select value={active.id} onChange={e => { setActiveId(e.target.value); invalidarDescarga() }}>
-          {budgets.map(b => (
-            <option key={b.id} value={b.id}>{(b.cliente ? b.cliente + ' — ' : '') + b.evento}</option>
-          ))}
-        </select>
-        <button className="tb" onClick={nuevo}>+ Nuevo</button>
-        <button className="tb" onClick={duplicar}>Duplicar</button>
+        <div className="filename">{nombreArchivo(active)}</div>
         <button className="tb danger" onClick={eliminar}>{confirmDel ? '¿Seguro? Toca de nuevo' : 'Eliminar'}</button>
         <button className="tb primary" onClick={exportar} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar a Excel'}</button>
         {dl && <a className="tb dl" href={dl.url} download={dl.name}>⬇ Descargar {dl.name}</a>}
-        <div className="savestate">{saveState}</div>
+        <button className="tb save" onClick={guardar} disabled={!dirty}>{dirty ? 'Guardar' : 'Guardado'}</button>
+        <div className="savestate">{saveMsg}</div>
       </div>
 
       <div className="sheet">
@@ -200,7 +371,8 @@ export default function PptoPage() {
             {META_FIELDS.map(([k, label, wide]) => (
               <div className="field" key={k} style={wide ? { gridColumn: 'span 2' } : undefined}>
                 <label>{label}</label>
-                <input className="in edit" value={String(active[k] ?? '')} onChange={e => setMeta(k, e.target.value)} />
+                <input className="in edit" value={String(active[k] ?? '')}
+                  onChange={e => k === 'centroCosto' ? setCentroCosto(e.target.value) : setMeta(k, e.target.value)} />
               </div>
             ))}
             <div className="field">
@@ -212,7 +384,7 @@ export default function PptoPage() {
               <input className="in num edit small" inputMode="numeric" value={active.margenPct || ''} onChange={e => setMeta('margenPct', parseNum(e.target.value))} />
             </div>
           </div>
-          <div className="hint">Como en tus modelos de Excel: lo <b>azul</b> se digita, lo negro se calcula solo. Al exportar, el archivo sale con el logo, colores y columnas separadas de tu plantilla.</div>
+          <div className="hint">Como en tus modelos de Excel: lo <b>azul</b> se digita, lo negro se calcula solo. Al escribir el centro de costo, si coincide con un proyecto se autocompletan cliente, evento y director.</div>
         </div>
 
         {/* Grilla */}
@@ -304,6 +476,20 @@ export default function PptoPage() {
           </div>
         </div>
       </div>
+
+      {showSaveChoice && (
+        <div className="modalbg" onClick={() => setShowSaveChoice(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modaltitle">¿Cómo guardas este cambio?</div>
+            <p className="modaltxt">Este presupuesto ya existe como <b>V{active.version}</b>. Puedes sobrescribirlo o guardar tus cambios como una versión nueva.</p>
+            <div className="modalbtns">
+              <button className="tb" onClick={confirmarSobrescribir}>Sobrescribir V{active.version}</button>
+              <button className="tb primary" onClick={confirmarNuevaVersion}>Guardar como nueva versión (V{nextVNum})</button>
+            </div>
+            <button className="modalcancel" onClick={() => setShowSaveChoice(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -314,17 +500,49 @@ function PptoStyles() {
     <style>{`
 .ppto{padding:24px;font-size:14px;color:#191c19;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
 .ppto .num{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.ppto .pheader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.ppto .pheader h1{font-size:24px;font-weight:700;color:#191c19;margin:0}
+.ppto .pheader p{font-size:14px;color:#6d746c;margin:4px 0 0}
+.ppto .breadcrumb{font-size:13px;color:#6d746c;margin-bottom:14px}
+.ppto .breadcrumb button{border:none;background:none;color:#1d4ed8;cursor:pointer;font:inherit;padding:0}
+.ppto .breadcrumb button:hover{text-decoration:underline}
+.ppto .field-inline{display:flex;gap:8px;align-items:center}
+.ppto .field-inline .in{max-width:260px}
+.ppto .errtxt{font-size:12px;color:#b3261e;margin-top:6px}
+.ppto .empty{background:#fff;border:1px dashed #c8cdc2;border-radius:12px;padding:40px 20px;text-align:center;color:#9aa398;font-size:14px}
+.ppto .cclist{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ppto .cccard{display:flex;flex-direction:column;gap:10px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:16px;cursor:pointer;font:inherit}
+.ppto .cccard:hover{border-color:#0e7a52;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.ppto .ccnum{font-size:12px;font-weight:700;color:#0e7a52;letter-spacing:.04em}
+.ppto .ccinfo{flex:1}
+.ppto .ccevento{font-size:14px;font-weight:600;color:#191c19;line-height:1.3}
+.ppto .cccliente{font-size:12px;color:#6d746c;margin-top:2px}
+.ppto .ccbadge{align-self:flex-start;font-size:11px;font-weight:600;color:#6d746c;background:#eef0ea;border-radius:20px;padding:3px 10px}
+.ppto .vlist{display:flex;flex-direction:column;gap:10px}
+.ppto .vcard{display:flex;align-items:center;gap:16px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:10px;padding:14px 16px;cursor:pointer;font:inherit;width:100%}
+.ppto .vcard:hover{border-color:#0e7a52}
+.ppto .vnum{font-size:13px;font-weight:700;color:#fff;background:#0e7a52;border-radius:6px;padding:4px 10px;flex-shrink:0}
+.ppto .vinfo{flex:1}
+.ppto .vevento{font-size:14px;font-weight:600;color:#191c19}
+.ppto .vfecha{font-size:12px;color:#6d746c;margin-top:2px}
+.ppto .vtotal{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:14px;font-weight:700;color:#191c19}
+.ppto .filename{font-size:12px;color:#6d746c;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;margin-right:auto}
 .ppto .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
 .ppto .toolbar select{border:1px solid #c8cdc2;border-radius:8px;padding:7px 10px;font:inherit;background:#fff;color:#191c19;max-width:340px}
 .ppto .tb{border:1px solid #c8cdc2;background:#fff;color:#374151;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer;font-weight:500}
 .ppto .tb:hover{background:#f3f4f6}
+.ppto .tb:disabled{opacity:.5;cursor:default}
+.ppto .tb:disabled:hover{background:#fff}
 .ppto .tb.primary{background:#0e7a52;border-color:#0e7a52;color:#fff;font-weight:600}
 .ppto .tb.primary:hover{background:#0c6a47}
 .ppto .tb.primary:disabled{opacity:.6;cursor:wait}
 .ppto .tb.danger:hover{background:#fef2f2;border-color:#fca5a5;color:#b3261e}
 .ppto .tb.dl{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:700;text-decoration:none;display:inline-block}
 .ppto .tb.dl:hover{background:#1a44bd}
-.ppto .savestate{margin-left:auto;font-size:12px;color:#9aa398}
+.ppto .tb.save{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:700}
+.ppto .tb.save:hover{background:#1a44bd}
+.ppto .tb.save:disabled{background:#eef0ea;border-color:#dde1d8;color:#9aa398}
+.ppto .savestate{margin-left:8px;font-size:12px;color:#9aa398}
 .ppto .sheet{max-width:1400px}
 .ppto .aviso{display:none;font-size:12px;color:#6d746c;padding:8px 2px}
 .ppto .aviso.show{display:block}
@@ -379,6 +597,14 @@ function PptoStyles() {
 .ppto .drag{cursor:grab;color:#9aa098;font-size:15px;padding:2px 4px;user-select:none;vertical-align:middle}
 .ppto .drag:active{cursor:grabbing}
 .ppto tr.dragover td{box-shadow:inset 0 3px 0 #0e7a52}
+.ppto .modalbg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.ppto .modal{background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.ppto .modaltitle{font-size:16px;font-weight:700;color:#191c19;margin-bottom:8px}
+.ppto .modaltxt{font-size:13px;color:#6d746c;line-height:1.5;margin:0 0 18px}
+.ppto .modalbtns{display:flex;flex-direction:column;gap:8px}
+.ppto .modalbtns .tb{width:100%;padding:10px 14px}
+.ppto .modalcancel{width:100%;border:none;background:none;color:#9aa398;cursor:pointer;font:inherit;padding:10px 0 0;font-size:13px}
+.ppto .modalcancel:hover{color:#6d746c}
     `}</style>
   )
 }
