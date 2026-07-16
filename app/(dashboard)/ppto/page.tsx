@@ -18,7 +18,7 @@ import {
   fmt, money, pctFmt, parseNum, uid, mkRow,
   emptyBudget, normalize, calcRow, calcTotals, utilColor,
 } from '@/lib/ppto/calculations'
-import { buildStyledBlob, buildBasicBlob, exportName } from '@/lib/ppto/export'
+import { buildStyledBlob, buildBasicBlob, exportName, type PptoExportVariant } from '@/lib/ppto/export'
 
 const META_FIELDS: [keyof PptoBudget, string, boolean][] = [
   ['centroCosto', 'Centro de costo', false],
@@ -235,19 +235,19 @@ export default function PptoPage() {
   }
 
   /* ---------- exportación ---------- */
-  async function exportar() {
+  async function exportar(variant: PptoExportVariant) {
     if (!active) return
     setExporting(true); invalidarDescarga()
     let blob: Blob | null = null, basico = false
-    try { blob = await buildStyledBlob(active) }
+    try { blob = await buildStyledBlob(active, variant) }
     catch (e) {
       console.log('respaldo sin estilos:', (e as Error).message)
-      try { blob = buildBasicBlob(active); basico = true } catch (e2) { console.error(e2) }
+      try { blob = buildBasicBlob(active, variant); basico = true } catch (e2) { console.error(e2) }
     }
     setExporting(false)
     if (!blob) { setSaveMsg('Error al exportar'); return }
     const url = URL.createObjectURL(blob)
-    const name = exportName(active)
+    const name = exportName(active, variant)
     setDl({ url, name }); setAvisoBasico(basico)
     try {
       const a = document.createElement('a')
@@ -356,7 +356,8 @@ export default function PptoPage() {
       <div className="toolbar">
         <div className="filename">{nombreArchivo(active)}</div>
         <button className="tb danger" onClick={eliminar}>{confirmDel ? '¿Seguro? Toca de nuevo' : 'Eliminar'}</button>
-        <button className="tb primary" onClick={exportar} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar a Excel'}</button>
+        <button className="tb primary" onClick={() => exportar('cliente')} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar Cliente'}</button>
+        <button className="tb primary" onClick={() => exportar('costos')} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar Costos'}</button>
         {dl && <a className="tb dl" href={dl.url} download={dl.name}>⬇ Descargar {dl.name}</a>}
         <button className="tb save" onClick={guardar} disabled={!dirty}>{dirty ? 'Guardar' : 'Guardado'}</button>
         <div className="savestate">{saveMsg}</div>

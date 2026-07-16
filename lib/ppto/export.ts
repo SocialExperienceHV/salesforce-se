@@ -19,12 +19,15 @@ const bordes = { top: thin, left: thin, bottom: thin, right: thin }
 const fill = (c: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: c } } as const)
 const ar = (size: number, extra?: Record<string, unknown>) => Object.assign({ name: "Arial", size }, extra || {})
 
-export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
+export type PptoExportVariant = 'cliente' | 'costos'
+
+export async function buildStyledBlob(b: PptoBudget, variant: PptoExportVariant = 'costos'): Promise<Blob> {
+  const soloCliente = variant === 'cliente'
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet("PPTO " + (b.cliente || "").slice(0, 20))
   const widths = [22.2, 70.7, 15.3, 14.2, 12.2, 21.5, 10.5, 16.5, 14, 16.5, 10.5, 16.5, 29.7]
-  ws.columns = widths.map(w => ({ width: w }))
+  ws.columns = (soloCliente ? widths.slice(0, 7) : widths).map(w => ({ width: w }))
 
   const imgId = wb.addImage({ base64: LOGO_B64, extension: "png" })
   ws.addImage(imgId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 149, height: 54 } })
@@ -50,7 +53,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
 
   const heads: Record<number, string> = { 1: "PROCESO", 2: "ÍTEM", 3: "COSTO UNIDAD", 4: "CANTIDAD", 5: "DÍAS", 6: "COSTO TOTAL",
     8: "VENTA SUGERIDA", 9: "COSTO REAL UND", 10: "COSTO REAL TOTAL", 12: "COSTO TOTAL ORDENADO", 13: "PROVEEDOR" }
-  Object.entries(heads).forEach(([cix, h]) => {
+  Object.entries(heads).filter(([cix]) => !soloCliente || Number(cix) <= 7).forEach(([cix, h]) => {
     const c = ws.getCell(11, Number(cix))
     c.value = h
     c.font = ar(10, { bold: true, color: { argb: BLANCO } })
@@ -71,12 +74,14 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
     row.getCell(4).value = r.cant || 0
     row.getCell(5).value = r.dias || 0
     row.getCell(6).value = { formula: `C${x}*D${x}*E${x}` }
-    row.getCell(8).value = { formula: factor > 0 ? `I${x}/${factor.toFixed(4)}` : "0" }
-    row.getCell(9).value = r.costoRealUnd || 0
-    row.getCell(10).value = { formula: `I${x}*D${x}*E${x}` }
-    row.getCell(12).value = r.ordenado || 0
-    row.getCell(13).value = r.proveedor || ""
-    ;[1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13].forEach(cix => {
+    if (!soloCliente) {
+      row.getCell(8).value = { formula: factor > 0 ? `I${x}/${factor.toFixed(4)}` : "0" }
+      row.getCell(9).value = r.costoRealUnd || 0
+      row.getCell(10).value = { formula: `I${x}*D${x}*E${x}` }
+      row.getCell(12).value = r.ordenado || 0
+      row.getCell(13).value = r.proveedor || ""
+    }
+    ;(soloCliente ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13]).forEach(cix => {
       const c = row.getCell(cix)
       c.border = bordes
       c.font = ar(10)
@@ -88,7 +93,7 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
     row.getCell(4).alignment = { horizontal: "center" }
     row.getCell(5).alignment = { horizontal: "center" }
     row.getCell(6).fill = fill(GRIS_F)
-    row.getCell(8).fill = fill(GRIS_H)
+    if (!soloCliente) row.getCell(8).fill = fill(GRIS_H)
     row.height = Math.max(19, Math.ceil((r.item || "").length / 75) * 15)
   })
 
@@ -115,39 +120,42 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   tot.border = bordes
 
   const bold10 = ar(10, { bold: true })
-  const setLM = (rowN: number, lVal: unknown, mText: string, opts?: { pct?: boolean }) => {
-    opts = opts || {}
-    const l = ws.getCell(rowN, 12), m = ws.getCell(rowN, 13)
-    if (lVal !== null) l.value = lVal as never
-    l.numFmt = opts.pct ? "0%" : PESOS
-    l.font = bold10
-    m.value = mText
-    m.font = bold10
-  }
-  setLM(T, null, "COMPRAS CON TARJETA")
-  setLM(T + 1, null, "ANTICIPOS SOLICITADOS")
-  setLM(T + 2, { formula: `SUM(L${first}:L${last})` }, "TOTAL REAL ORDENADO")
-  setLM(T + 3, { formula: `L${T + 2}` }, "COSTO TOTAL REAL")
-  setLM(T + 4, { formula: `F${T + 7}-L${T + 3}` }, "UTILIDAD REAL")
-  setLM(T + 5, { formula: `IF(F${T + 7}=0,0,L${T + 4}/F${T + 7})` }, "UT. REAL EXPRESADA EN %", { pct: true })
 
   for (let cix = 1; cix <= 5; cix++) ws.getCell(T + 2, cix).fill = fill(AZUL)
 
-  ws.mergeCells(T + 2, 9, T + 2, 10)
-  const proy = ws.getCell(T + 2, 9)
-  proy.value = "PROYECCION"
-  proy.font = bold10
-  proy.alignment = { horizontal: "center" }
-  const setIJ = (rowN: number, iText: string, jFormula: string, pct?: boolean) => {
-    const ic = ws.getCell(rowN, 9), jc = ws.getCell(rowN, 10)
-    ic.value = iText; ic.font = bold10
-    jc.value = { formula: jFormula }
-    jc.numFmt = pct ? "0%" : PESOS
-    jc.font = bold10
+  if (!soloCliente) {
+    const setLM = (rowN: number, lVal: unknown, mText: string, opts?: { pct?: boolean }) => {
+      opts = opts || {}
+      const l = ws.getCell(rowN, 12), m = ws.getCell(rowN, 13)
+      if (lVal !== null) l.value = lVal as never
+      l.numFmt = opts.pct ? "0%" : PESOS
+      l.font = bold10
+      m.value = mText
+      m.font = bold10
+    }
+    setLM(T, null, "COMPRAS CON TARJETA")
+    setLM(T + 1, null, "ANTICIPOS SOLICITADOS")
+    setLM(T + 2, { formula: `SUM(L${first}:L${last})` }, "TOTAL REAL ORDENADO")
+    setLM(T + 3, { formula: `L${T + 2}` }, "COSTO TOTAL REAL")
+    setLM(T + 4, { formula: `F${T + 7}-L${T + 3}` }, "UTILIDAD REAL")
+    setLM(T + 5, { formula: `IF(F${T + 7}=0,0,L${T + 4}/F${T + 7})` }, "UT. REAL EXPRESADA EN %", { pct: true })
+
+    ws.mergeCells(T + 2, 9, T + 2, 10)
+    const proy = ws.getCell(T + 2, 9)
+    proy.value = "PROYECCION"
+    proy.font = bold10
+    proy.alignment = { horizontal: "center" }
+    const setIJ = (rowN: number, iText: string, jFormula: string, pct?: boolean) => {
+      const ic = ws.getCell(rowN, 9), jc = ws.getCell(rowN, 10)
+      ic.value = iText; ic.font = bold10
+      jc.value = { formula: jFormula }
+      jc.numFmt = pct ? "0%" : PESOS
+      jc.font = bold10
+    }
+    setIJ(T + 3, "COSTO TOTAL", `SUM(J${first}:J${last})`)
+    setIJ(T + 4, "UTILIDAD", `F${T + 7}-J${T + 3}`)
+    setIJ(T + 5, "U %", `IF(F${T + 7}=0,0,J${T + 4}/F${T + 7})`, true)
   }
-  setIJ(T + 3, "COSTO TOTAL", `SUM(J${first}:J${last})`)
-  setIJ(T + 4, "UTILIDAD", `F${T + 7}-J${T + 3}`)
-  setIJ(T + 5, "U %", `IF(F${T + 7}=0,0,J${T + 4}/F${T + 7})`, true)
 
   ws.mergeCells(T + 3, 4, T + 3, 6)
   const rh = ws.getCell(T + 3, 4)
@@ -227,7 +235,8 @@ export async function buildStyledBlob(b: PptoBudget): Promise<Blob> {
   return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
 }
 
-export function buildBasicBlob(b: PptoBudget): Blob {
+export function buildBasicBlob(b: PptoBudget, variant: PptoExportVariant = 'costos'): Blob {
+  const soloCliente = variant === 'cliente'
   const wb = XLSX.utils.book_new()
   const aoa: unknown[][] = []
   for (let i = 0; i < 11; i++) aoa.push([])
@@ -238,10 +247,14 @@ export function buildBasicBlob(b: PptoBudget): Blob {
   aoa[6] = ["FECHA:", b.fecha]
   aoa[7] = ["CIUDAD", b.ciudad]
   aoa[8] = ["DIRECTOR PROYECTO", b.director]
-  aoa[10] = ["PROCESO", "ÍTEM", "COSTO UNIDAD", "CANTIDAD", "DÍAS", "COSTO TOTAL", "", "VENTA SUGERIDA", "COSTO REAL UND", "COSTO REAL TOTAL", "", "COSTO TOTAL ORDENADO", "PROVEEDOR"]
+  aoa[10] = soloCliente
+    ? ["PROCESO", "ÍTEM", "COSTO UNIDAD", "CANTIDAD", "DÍAS", "COSTO TOTAL"]
+    : ["PROCESO", "ÍTEM", "COSTO UNIDAD", "CANTIDAD", "DÍAS", "COSTO TOTAL", "", "VENTA SUGERIDA", "COSTO REAL UND", "COSTO REAL TOTAL", "", "COSTO TOTAL ORDENADO", "PROVEEDOR"]
   const first = 12
   b.rows.forEach(r => {
-    aoa.push([r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0, "", 0, r.costoRealUnd || 0, 0, "", r.ordenado || 0, r.proveedor || ""])
+    aoa.push(soloCliente
+      ? [r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0]
+      : [r.proceso || "", r.item, r.costoUnd || 0, r.cant || 0, r.dias || 0, 0, "", 0, r.costoRealUnd || 0, 0, "", r.ordenado || 0, r.proveedor || ""])
   })
   const last = first + b.rows.length - 1, T = last + 1
   const ws = XLSX.utils.aoa_to_sheet(aoa)
@@ -249,22 +262,26 @@ export function buildBasicBlob(b: PptoBudget): Blob {
   for (let i = 0; i < b.rows.length; i++) {
     const x = first + i
     ws["F" + x] = { t: "n", f: `C${x}*D${x}*E${x}` }
-    ws["H" + x] = { t: "n", f: factor > 0 ? `I${x}/${factor.toFixed(4)}` : "0" }
-    ws["J" + x] = { t: "n", f: `I${x}*D${x}*E${x}` }
+    if (!soloCliente) {
+      ws["H" + x] = { t: "n", f: factor > 0 ? `I${x}/${factor.toFixed(4)}` : "0" }
+      ws["J" + x] = { t: "n", f: `I${x}*D${x}*E${x}` }
+    }
   }
   const putF = (addr: string, f: string) => { ws[addr] = { t: "n", f } }
   const putS = (addr: string, v: string) => { ws[addr] = { t: "s", v } }
   putF("F" + T, `SUM(F${first}:F${last})`)
-  putS("M" + T, "COMPRAS CON TARJETA")
-  putS("M" + (T + 1), "ANTICIPOS SOLICITADOS")
-  putS("M" + (T + 2), "TOTAL REAL ORDENADO"); putF("L" + (T + 2), `SUM(L${first}:L${last})`)
-  putS("M" + (T + 3), "COSTO TOTAL REAL"); putF("L" + (T + 3), `L${T + 2}`)
-  putS("M" + (T + 4), "UTILIDAD REAL"); putF("L" + (T + 4), `F${T + 7}-L${T + 3}`)
-  putS("M" + (T + 5), "UT. REAL EXPRESADA EN %"); putF("L" + (T + 5), `IF(F${T + 7}=0,0,L${T + 4}/F${T + 7})`)
-  putS("I" + (T + 2), "PROYECCION")
-  putS("I" + (T + 3), "COSTO TOTAL"); putF("J" + (T + 3), `SUM(J${first}:J${last})`)
-  putS("I" + (T + 4), "UTILIDAD"); putF("J" + (T + 4), `F${T + 7}-J${T + 3}`)
-  putS("I" + (T + 5), "U %"); putF("J" + (T + 5), `IF(F${T + 7}=0,0,J${T + 4}/F${T + 7})`)
+  if (!soloCliente) {
+    putS("M" + T, "COMPRAS CON TARJETA")
+    putS("M" + (T + 1), "ANTICIPOS SOLICITADOS")
+    putS("M" + (T + 2), "TOTAL REAL ORDENADO"); putF("L" + (T + 2), `SUM(L${first}:L${last})`)
+    putS("M" + (T + 3), "COSTO TOTAL REAL"); putF("L" + (T + 3), `L${T + 2}`)
+    putS("M" + (T + 4), "UTILIDAD REAL"); putF("L" + (T + 4), `F${T + 7}-L${T + 3}`)
+    putS("M" + (T + 5), "UT. REAL EXPRESADA EN %"); putF("L" + (T + 5), `IF(F${T + 7}=0,0,L${T + 4}/F${T + 7})`)
+    putS("I" + (T + 2), "PROYECCION")
+    putS("I" + (T + 3), "COSTO TOTAL"); putF("J" + (T + 3), `SUM(J${first}:J${last})`)
+    putS("I" + (T + 4), "UTILIDAD"); putF("J" + (T + 4), `F${T + 7}-J${T + 3}`)
+    putS("I" + (T + 5), "U %"); putF("J" + (T + 5), `IF(F${T + 7}=0,0,J${T + 4}/F${T + 7})`)
+  }
   putS("D" + (T + 3), "RESUMEN PRESUPUESTO")
   putS("D" + (T + 4), "SUBTOTAL"); putF("F" + (T + 4), `F${T}`)
   putS("D" + (T + 5), "UTILIDAD DE AGENCIA"); putF("F" + (T + 5), `F${T + 4}*${((b.agenciaPct || 0) / 100).toFixed(4)}`)
@@ -276,14 +293,15 @@ export function buildBasicBlob(b: PptoBudget): Blob {
   putS("A" + (T + 10), b.director || "")
   putS("A" + (T + 11), "DIRECTOR DEL PROYECTO A CARGO")
   const ref = XLSX.utils.decode_range(ws["!ref"] as string)
-  ref.e.r = Math.max(ref.e.r, T + 11); ref.e.c = Math.max(ref.e.c, 12)
+  ref.e.r = Math.max(ref.e.r, T + 11); ref.e.c = Math.max(ref.e.c, soloCliente ? 6 : 12)
   ws["!ref"] = XLSX.utils.encode_range(ref)
-  ws["!cols"] = [{ wch: 22 }, { wch: 70.7 }, { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
+  const widths = [{ wch: 22 }, { wch: 70.7 }, { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 21 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 29 }]
+  ws["!cols"] = soloCliente ? widths.slice(0, 7) : widths
   XLSX.utils.book_append_sheet(wb, ws, "PPTO")
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" })
   return new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
 }
 
-export const exportName = (b: PptoBudget) =>
-  ("PPTO_" + (b.centroCosto || "SC") + "_" + (b.evento || "presupuesto") + "_V" + (b.version || 1))
+export const exportName = (b: PptoBudget, variant: PptoExportVariant = 'costos') =>
+  ("PPTO_" + (b.centroCosto || "SC") + "_" + (b.evento || "presupuesto") + "_V" + (b.version || 1) + "_" + (variant === 'cliente' ? "Cliente" : "Costos"))
     .replace(/\s+/g, "_").replace(/_+$/, "") + ".xlsx"
