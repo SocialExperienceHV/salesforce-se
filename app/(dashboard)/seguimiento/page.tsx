@@ -12,7 +12,6 @@ const PERIODOS = ['Mes', 'Trimestre', 'Semestre', 'Año']
 
 function fmt(n: number) { return `$ ${n.toLocaleString('es-CO')}` }
 function fmtK(n: number) {
-  if (n >= 1_000_000_000) return `$ ${(n / 1_000_000_000).toFixed(1).replace('.', ',')} B`
   if (n >= 1_000_000) return `$ ${(n / 1_000_000).toFixed(1).replace('.', ',')} M`
   return fmt(n)
 }
