@@ -380,7 +380,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   function addProyecto(p: Omit<Proyecto, 'id' | 'createdAt'>) {
-    const newP: Proyecto = { ...p, id: `p${Date.now()}`, createdAt: new Date().toISOString() }
+    // Centro de costo autogenerado desde la creación (ya no se espera a "Vendido").
+    // Los centros de costo nuevos arrancan en 1800 en adelante (los existentes,
+    // asignados manualmente antes de este cambio, quedan todos por debajo).
+    const usados = proyectos
+      .map(pr => parseInt((pr.centroCosto || '').trim(), 10))
+      .filter(n => !isNaN(n))
+    const centroCosto = String(Math.max(1799, ...usados) + 1)
+    const newP: Proyecto = { ...p, centroCosto, id: `p${Date.now()}`, createdAt: new Date().toISOString() }
     setProyectos(prev => [newP, ...prev])
     sbInsert('proyectos', newP.id, newP)
     addNotificacionInternal({

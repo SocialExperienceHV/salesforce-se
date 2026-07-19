@@ -99,31 +99,30 @@ function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, 
             </div>
           </div>
 
-          {/* Centro de costo — solo visible cuando está Vendido */}
-          {proyecto.estadoComercial === 'Vendido' && (
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 16px' }}>
-              <div className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Centro de costo (Gespro)</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  value={cc}
-                  onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 4); setCc(v) }}
-                  placeholder="4 dígitos"
-                  maxLength={4}
-                  style={{ height: 36, width: 100, padding: '0 10px', border: '1px solid #BBF7D0', borderRadius: 7, fontSize: 14, fontWeight: 600, color: '#065F46', textAlign: 'center', outline: 'none', letterSpacing: '0.1em' }}
-                />
-                <button
-                  onClick={() => { if (cc.length === 4) onCentroCostoChange(proyecto.id, cc) }}
-                  disabled={cc.length !== 4}
-                  style={{ height: 36, padding: '0 14px', background: cc.length === 4 ? '#059669' : '#D1FAE5', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: cc.length === 4 ? '#fff' : '#6EE7B7', cursor: cc.length === 4 ? 'pointer' : 'not-allowed' }}>
-                  Asignar
-                </button>
-                {proyecto.centroCosto && (
-                  <span style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>Actual: {proyecto.centroCosto}</span>
-                )}
-              </div>
-              <p style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>Ingresa el número de 4 dígitos asignado en Gespro.</p>
+          {/* Centro de costo — se asigna automáticamente al crear el proyecto; este
+              cuadro queda para corregirlo manualmente si hace falta */}
+          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '14px 16px' }}>
+            <div className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Centro de costo</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                value={cc}
+                onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 4); setCc(v) }}
+                placeholder="4 dígitos"
+                maxLength={4}
+                style={{ height: 36, width: 100, padding: '0 10px', border: '1px solid #BBF7D0', borderRadius: 7, fontSize: 14, fontWeight: 600, color: '#065F46', textAlign: 'center', outline: 'none', letterSpacing: '0.1em' }}
+              />
+              <button
+                onClick={() => { if (cc.length === 4) onCentroCostoChange(proyecto.id, cc) }}
+                disabled={cc.length !== 4}
+                style={{ height: 36, padding: '0 14px', background: cc.length === 4 ? '#059669' : '#D1FAE5', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, color: cc.length === 4 ? '#fff' : '#6EE7B7', cursor: cc.length === 4 ? 'pointer' : 'not-allowed' }}>
+                Corregir
+              </button>
+              {proyecto.centroCosto && (
+                <span style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>Actual: {proyecto.centroCosto}</span>
+              )}
             </div>
-          )}
+            <p style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>Se asigna solo al crear el proyecto. Corrígelo aquí únicamente si hay que hacerlo coincidir con un número distinto en Gespro.</p>
+          </div>
 
           {/* Venta Real — solo visible cuando está Vendido */}
           {proyecto.estadoComercial === 'Vendido' && (
