@@ -394,6 +394,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function updateProyecto(id: string, changes: Partial<Proyecto>) {
     const old = proyectos.find(p => p.id === id)
+    // Si el proyecto deja de estar "Vendido" (se reabre la negociación, vuelve a
+    // propuesta, etc.), se borra la Venta Real: ya no aplica mientras no esté
+    // cerrado de nuevo, para no dejar un valor de venta obsoleto visible.
+    if (changes.estadoComercial && changes.estadoComercial !== 'Vendido' && old?.estadoComercial === 'Vendido') {
+      changes = { ...changes, montoRealVendido: undefined }
+    }
     if (changes.estadoComercial === 'Vendido' && old?.estadoComercial !== 'Vendido') {
       addNotificacionInternal({
         tipo: 'proyecto_vendido',
