@@ -29,7 +29,6 @@ const estadoConfig: Record<string, string> = {
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-const mesesFiltro = ['Todos', ...MESES.map((m, i) => `${m} ${2026 + Math.floor(i / 12)}`).slice(0, 12)]
 const tipos = ['Todos', 'Evento 360', 'Logística', 'Activación', 'Experiencias', 'Convención', 'Escenografía/Feria', 'Técnica', 'Litografía', 'Digital', 'Estrategia', 'Otros']
 const estadosFiltro = ['Todos', 'En propuesta', 'En negociación', 'Vendido', 'Perdido']
 
@@ -52,6 +51,14 @@ function mesDeProyecto(p: Proyecto): string {
   }
   if (month < 0) return ''
   return `${MESES[month]} ${year}`
+}
+
+// Extrae el año del proyecto (formatos: DD/MM/YYYY o YYYY-MM-DD); null si no tiene fecha
+function anioDeProyecto(p: Proyecto): number | null {
+  const raw = p.fechaEntrega || p.fechaPresentacion || p.fechaInicio
+  if (!raw) return null
+  const year = raw.includes('/') ? parseInt(raw.split('/')[2]) : raw.includes('-') ? parseInt(raw.split('-')[0]) : NaN
+  return isNaN(year) ? null : year
 }
 
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
@@ -327,6 +334,7 @@ export default function ProyectosPage() {
   const [ejecutivo, setEjecutivo] = useState('Todos')
   const [cliente, setCliente] = useState('Todos')
   const [mes, setMes] = useState('Todos')
+  const [anio, setAnio] = useState(String(new Date().getFullYear()))
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
   const [editando, setEditando] = useState<Proyecto | null>(null)
   const [sortCol, setSortCol] = useState<string | null>(null)
@@ -339,6 +347,8 @@ export default function ProyectosPage() {
 
   const clientesFiltro = ['Todos', ...clientes.map(c => c.nombre)]
   const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
+  const aniosFiltro = ['Todos', ...Array.from(new Set(proyectos.map(anioDeProyecto).filter((y): y is number => y !== null))).sort((a, b) => b - a).map(String)]
+  const mesesFiltro = ['Todos', ...MESES.map(m => `${m} ${anio === 'Todos' ? new Date().getFullYear() : anio}`)]
 
   const filtered = proyectos.filter(p => {
     const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || p.cliente.toLowerCase().includes(search.toLowerCase())
@@ -347,7 +357,8 @@ export default function ProyectosPage() {
     const matchEjecutivo = ejecutivo === 'Todos' || p.ejecutivo === ejecutivo
     const matchCliente = cliente === 'Todos' || p.cliente === cliente
     const matchMes = mes === 'Todos' || mesDeProyecto(p) === mes
-    return matchSearch && matchTipo && matchEstado && matchEjecutivo && matchCliente && matchMes
+    const matchAnio = anio === 'Todos' || anioDeProyecto(p) === null || anioDeProyecto(p) === Number(anio)
+    return matchSearch && matchTipo && matchEstado && matchEjecutivo && matchCliente && matchMes && matchAnio
   })
 
   const sorted = useMemo(() => {
@@ -432,6 +443,13 @@ export default function ProyectosPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
+        <Select value={anio} onValueChange={v => v && setAnio(v)}>
+          <SelectTrigger className="w-32 h-9 text-sm">
+            <span className="text-muted-foreground text-xs mr-1">Año:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>{aniosFiltro.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+        </Select>
         <Select value={cliente} onValueChange={v => v && setCliente(v)}>
           <SelectTrigger className="w-44 h-9 text-sm">
             <span className="text-muted-foreground text-xs mr-1">Cliente:</span>
