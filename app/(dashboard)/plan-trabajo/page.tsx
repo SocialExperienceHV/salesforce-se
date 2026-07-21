@@ -338,8 +338,6 @@ export default function PlanTrabajoPage() {
       if (semanaOffset === 0) {
         const tieneDiaNormal = a.dias.some(d => (DIAS as readonly string[]).includes(d))
         if (!tieneDiaNormal) return false
-        // Las ya Finalizadas no ensucian el tablero de la semana actual, salvo que se pidan explícitamente
-        if (a.estado === 'Finalizado' && filtroEstado !== 'Finalizado') return false
       } else if (semanaOffset === 1) {
         if (!a.dias.includes('Siguiente semana')) return false
         if (a.estado === 'Finalizado') return false  // no hay finalizadas en semana siguiente
