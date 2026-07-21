@@ -325,18 +325,30 @@ export default function PlanTrabajoPage() {
       // Filtro por semana: offset 0 → días normales, offset 1 → "Siguiente semana"
       if (semanaOffset === 0) {
         const tieneDiaNormal = a.dias.some(d => (DIAS as readonly string[]).includes(d))
-        if (a.estado === 'Finalizado') return tieneDiaNormal  // finalizadas solo en semana actual
         if (!tieneDiaNormal) return false
+        // Las ya Finalizadas no ensucian el tablero de la semana actual, salvo que se pidan explícitamente
+        if (a.estado === 'Finalizado' && filtroEstado !== 'Finalizado') return false
       } else if (semanaOffset === 1) {
         if (!a.dias.includes('Siguiente semana')) return false
-        if (filtroEstado === 'Finalizado') return false  // no hay finalizadas en semana siguiente
+        if (a.estado === 'Finalizado') return false  // no hay finalizadas en semana siguiente
       } else {
         return false  // semanas pasadas o futuras lejanas sin datos
       }
       if (filtroEstado === 'Finalizado' && a.estado !== 'Finalizado') return false
+      if (filtroEstado === 'En proceso' && a.estado !== 'En proceso') return false
       return true
     })
   }, [asignaciones, personasFiltradas, filtroEstado, semanaOffset])
+
+  // ── Asignaciones de la semana en vista, sin ocultar Finalizadas (para las stats) ──
+  const asigsSemana = useMemo(() => {
+    return asignaciones.filter(a => {
+      if (!personasFiltradas.includes(a.persona)) return false
+      if (semanaOffset === 0) return a.dias.some(d => (DIAS as readonly string[]).includes(d))
+      if (semanaOffset === 1) return a.dias.includes('Siguiente semana')
+      return false
+    })
+  }, [asignaciones, personasFiltradas, semanaOffset])
 
   function asigsPorPersonaDia(persona: string, dia: Dia) {
     if (semanaOffset === 1) {
@@ -392,10 +404,10 @@ export default function PlanTrabajoPage() {
     setTimeout(() => { setNuevaOk(false); setNuevaProyecto(''); setNuevaPersona(''); setNuevaDia('Lunes'); setNuevaLaborOpen(false) }, 1500)
   }
 
-  // ── Stats rápidas ────────────────────────────────────────────────────────────
-  const totalAsigs  = asigsFiltradas.length
-  const enProceso   = asigsFiltradas.filter(a => a.estado === 'En proceso').length
-  const finalizados = asigsFiltradas.filter(a => a.estado === 'Finalizado').length
+  // ── Stats rápidas (siempre sobre el total real, sin ocultar Finalizadas) ─────
+  const totalAsigs  = asigsSemana.length
+  const enProceso   = asigsSemana.filter(a => a.estado === 'En proceso').length
+  const finalizados = asigsSemana.filter(a => a.estado === 'Finalizado').length
 
   // ── Semana actual (label) ────────────────────────────────────────────────────
   const semanaLabel = (() => {
