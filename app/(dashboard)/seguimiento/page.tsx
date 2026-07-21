@@ -376,69 +376,55 @@ export default function SeguimientoPage() {
         </p>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+      {/* Filter bar — todo en una sola fila, sin wrap */}
+      <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', overflowX: 'auto' }}>
         {/* Periodo tabs */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Ver por periodo</div>
-          <div style={{ display: 'flex', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
-            {PERIODOS.map((p, i) => (
-              <button key={p} onClick={() => setPeriodo(p)}
-                style={{ padding: '5px 14px', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer',
-                  borderRight: i < PERIODOS.length - 1 ? '1px solid #E5E7EB' : 'none',
-                  background: periodo === p ? '#1A56DB' : '#fff',
-                  color: periodo === p ? '#fff' : '#374151' }}>
-                {p}
-              </button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+          {PERIODOS.map((p, i) => (
+            <button key={p} onClick={() => setPeriodo(p)}
+              style={{ padding: '6px 10px', fontSize: 12, fontWeight: 500, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                borderRight: i < PERIODOS.length - 1 ? '1px solid #E5E7EB' : 'none',
+                background: periodo === p ? '#1A56DB' : '#fff',
+                color: periodo === p ? '#fff' : '#374151' }}>
+              {p}
+            </button>
+          ))}
         </div>
 
         {/* Navegador de fecha */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>&nbsp;</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 34, border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-            <button onClick={() => navPeriodo(-1)} style={{ width: 30, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRight: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280' }}>
-              <ChevronLeft style={{ width: 14, height: 14 }} />
-            </button>
-            <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, padding: '0 10px', whiteSpace: 'nowrap', minWidth: 140, textAlign: 'center' }}>
-              {periodoLabel(periodo, cursorMonth, cursorYear)}
-            </span>
-            <button onClick={() => navPeriodo(1)} style={{ width: 30, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderLeft: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280' }}>
-              <ChevronRight style={{ width: 14, height: 14 }} />
-            </button>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 32, border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#fff', flexShrink: 0 }}>
+          <button onClick={() => navPeriodo(-1)} style={{ width: 26, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRight: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280' }}>
+            <ChevronLeft style={{ width: 13, height: 13 }} />
+          </button>
+          <span style={{ fontSize: 12, color: '#374151', fontWeight: 500, padding: '0 6px', whiteSpace: 'nowrap', minWidth: 100, textAlign: 'center' }}>
+            {periodoLabel(periodo, cursorMonth, cursorYear)}
+          </span>
+          <button onClick={() => navPeriodo(1)} style={{ width: 26, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderLeft: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280' }}>
+            <ChevronRight style={{ width: 13, height: 13 }} />
+          </button>
         </div>
 
-        <div style={{ width: 1, height: 34, background: '#E5E7EB' }} />
+        <div style={{ width: 1, height: 26, background: '#E5E7EB', flexShrink: 0 }} />
 
         {/* Filtros */}
         {[
-          { label: 'Cliente', value: cliente, set: setCliente, opts: clientesFiltro },
-          { label: 'Ejecutivo', value: ejecutivo, set: setEjecutivo, opts: ejecutivosFiltro },
-          { label: 'Estado', value: estado, set: setEstado, opts: estadosFiltro },
-        ].map(({ label, value, set, opts }) => (
-          <div key={label}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>{label}</div>
-            <div style={{ position: 'relative' }}>
-              <select value={value} onChange={e => set(e.target.value)}
-                style={{ height: 34, padding: '0 28px 0 10px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', background: '#fff', cursor: 'pointer', outline: 'none', appearance: 'none', minWidth: 120,
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 9px center' }}>
-                {opts.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
+          { label: 'Cliente', value: cliente, set: setCliente, opts: clientesFiltro, width: 130 },
+          { label: 'Ejecutivo', value: ejecutivo, set: setEjecutivo, opts: ejecutivosFiltro, width: 120 },
+          { label: 'Estado', value: estado, set: setEstado, opts: estadosFiltro, width: 110 },
+        ].map(({ label, value, set, opts, width }) => (
+          <select key={label} value={value} onChange={e => set(e.target.value)} title={label}
+            style={{ height: 32, width, flexShrink: 0, padding: '0 24px 0 8px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 12, color: '#374151', background: '#fff', cursor: 'pointer', outline: 'none', appearance: 'none', textOverflow: 'ellipsis',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
+            {opts.map(o => <option key={o} value={o}>{label}: {o}</option>)}
+          </select>
         ))}
 
         {/* Search */}
-        <div style={{ marginLeft: 'auto' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>&nbsp;</div>
-          <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9CA3AF' }} />
-            <input placeholder="Buscar proyecto..." value={search} onChange={e => setSearch(e.target.value)}
-              style={{ height: 34, paddingLeft: 30, paddingRight: 12, width: 192, border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', background: '#fff', outline: 'none' }} />
-          </div>
+        <div style={{ position: 'relative', flexShrink: 0, marginLeft: 'auto', minWidth: 140 }}>
+          <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#9CA3AF' }} />
+          <input placeholder="Buscar proyecto..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ height: 32, paddingLeft: 27, paddingRight: 10, width: '100%', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 12, color: '#374151', background: '#fff', outline: 'none' }} />
         </div>
       </div>
 
