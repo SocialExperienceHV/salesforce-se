@@ -424,7 +424,7 @@ function EditarClienteModal({ cliente, onClose, onSave, kams }: {
   const [color, setColor] = useState(cliente.color)
   const [logo, setLogo] = useState(cliente.logo ?? '')
   const [subclienteInput, setSubclienteInput] = useState('')
-  const [subclientes, setSubclientes] = useState<string[]>(cliente.subclientes)
+  const [subclientes, setSubclientes] = useState<string[]>(cliente.subclientes ?? [])
   const [error, setError] = useState('')
 
   function addSubcliente() {
@@ -538,7 +538,7 @@ export default function ClientesPage() {
     })
     .sort((a, b) => sortAZ ? a.nombre.localeCompare(b.nombre, 'es') : 0)
 
-  const totalSubclientes = clientes.reduce((sum, c) => sum + c.subclientes.length, 0)
+  const totalSubclientes = clientes.reduce((sum, c) => sum + (c.subclientes?.length ?? 0), 0)
   const totalProyectos = proyectos.length
   const proyectosPorCliente = (nombre: string) => proyectos.filter(p => p.cliente === nombre).length
 
@@ -663,7 +663,7 @@ export default function ClientesPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {c.subclientes.length > 0 ? c.subclientes.map(s => (
+                    {(c.subclientes?.length ?? 0) > 0 ? c.subclientes.map(s => (
                       <span key={s} className="inline-flex px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground border border-border">{s}</span>
                     )) : <span className="text-xs text-muted-foreground">—</span>}
                   </div>
@@ -700,7 +700,7 @@ export default function ClientesPage() {
                         <DropdownMenuItem onClick={() => setEditando(c)}>Editar</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => {
                           const sub = prompt('Nombre del área:')
-                          if (sub?.trim()) updateCliente(c.id, { subclientes: [...c.subclientes, sub.trim()] })
+                          if (sub?.trim()) updateCliente(c.id, { subclientes: [...(c.subclientes ?? []), sub.trim()] })
                         }}>Agregar área</DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-red-600"
