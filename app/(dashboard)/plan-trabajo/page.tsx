@@ -56,6 +56,7 @@ function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
   const { personasStore } = useStore()
   const persona = personasStore.find(p => p.nombre === asig.persona)
   const [diasSel, setDiasSel] = useState<DiaPlan[]>(asig.dias)
+  const bloqueado = asig.estado === 'Finalizado'
 
   useEffect(() => { setDiasSel(asig.dias) }, [asig.key])
 
@@ -104,23 +105,27 @@ function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
           </div>
         </div>
 
-        {/* Días asignados */}
+        {/* Días asignados — bloqueado una vez finalizada, para que no se pueda mover */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Días asignados</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DIAS_PANEL.map(d => {
               const sel = diasSel.includes(d as DiaPlan)
               return (
-                <button key={d} onClick={() => toggleDia(d as DiaPlan)}
-                  style={{ padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                <button key={d} onClick={() => !bloqueado && toggleDia(d as DiaPlan)} disabled={bloqueado}
+                  style={{ padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: bloqueado ? 'not-allowed' : 'pointer',
                     border: sel ? '2px solid #1A56DB' : '2px solid #E5E7EB',
                     background: sel ? '#EFF6FF' : '#fff',
-                    color: sel ? '#1A56DB' : '#6B7280', transition: 'all 0.1s' }}>
+                    color: sel ? '#1A56DB' : '#6B7280', transition: 'all 0.1s',
+                    opacity: bloqueado && !sel ? 0.5 : 1 }}>
                   {d}
                 </button>
               )
             })}
           </div>
+          {bloqueado && (
+            <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>Ya está finalizada, así que se queda fija en su día.</p>
+          )}
         </div>
 
         {/* Estado */}
@@ -132,10 +137,12 @@ function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
           </span>
         </div>
 
-        <button onClick={() => onSave(diasSel)}
-          style={{ width: '100%', height: 38, background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
-          Guardar cambio de día
-        </button>
+        {!bloqueado && (
+          <button onClick={() => onSave(diasSel)}
+            style={{ width: '100%', height: 38, background: '#1A56DB', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+            Guardar cambio de día
+          </button>
+        )}
       </div>
 
       {/* Footer */}
