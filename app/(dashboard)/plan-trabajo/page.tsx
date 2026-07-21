@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, X, Check, Plus, Users, CalendarDays, RefreshCw, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import type { Proyecto } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'] as const
@@ -30,6 +31,13 @@ function nextDia(dia: Dia): Dia {
 }
 function initiales(nombre: string) {
   return nombre.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+}
+// Extrae el año del proyecto (formatos: DD/MM/YYYY o YYYY-MM-DD); null si no tiene fecha
+function anioDeProyecto(p: Proyecto): number | null {
+  const raw = p.fechaEntrega || p.fechaPresentacion || p.fechaInicio
+  if (!raw) return null
+  const year = raw.includes('/') ? parseInt(raw.split('/')[2]) : raw.includes('-') ? parseInt(raw.split('-')[0]) : NaN
+  return isNaN(year) ? null : year
 }
 
 // ─── Panel lateral ──────────────────────────────────────────────────────────────
@@ -244,6 +252,10 @@ export default function PlanTrabajoPage() {
   const [nuevaPersona, setNuevaPersona] = useState('')
   const [nuevaDia, setNuevaDia] = useState<DiaPlan>('Lunes')
   const [nuevaOk, setNuevaOk] = useState(false)
+  const proyectosEsteAnio = useMemo(() => {
+    const anioActual = new Date().getFullYear()
+    return proyectos.filter(p => anioDeProyecto(p) === anioActual)
+  }, [proyectos])
 
   // ── Derivar asignaciones desde proyectos ─────────────────────────────────────
   const asignaciones: Asig[] = useMemo(() => {
@@ -554,7 +566,7 @@ export default function PlanTrabajoPage() {
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Proyecto</span>
                   <select value={nuevaProyecto} onChange={e => setNuevaProyecto(e.target.value)} style={{ ...sel, minWidth: 200 }}>
                     <option value="">Seleccionar proyecto...</option>
-                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    {proyectosEsteAnio.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
