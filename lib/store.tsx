@@ -226,9 +226,21 @@ export function setLoggedUserId(id: string | null) {
 
 // ─── Supabase helpers ──────────────────────────────────────────────────────────
 
+// Supabase/PostgREST solo devuelve 1000 filas por consulta por defecto. Sin
+// paginar, cualquier tabla que supere ese tamaño (como ya le pasó a
+// "proyectos") pierde filas en silencio para todos los usuarios.
 async function sbGet<T>(table: string): Promise<T[]> {
-  const { data } = await supabase.from(table).select('data')
-  return (data ?? []).map((r: { data: T }) => r.data)
+  const PAGE = 1000
+  const all: { data: T }[] = []
+  let from = 0
+  for (;;) {
+    const { data } = await supabase.from(table).select('data').range(from, from + PAGE - 1)
+    if (!data || data.length === 0) break
+    all.push(...(data as { data: T }[]))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all.map(r => r.data)
 }
 
 async function sbGetOverrides(): Promise<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>> {
