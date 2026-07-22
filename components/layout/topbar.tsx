@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, Search, LogOut, CheckCheck, FolderOpen, TrendingUp, UserCheck } from 'lucide-react'
+import { Bell, Search, LogOut, CheckCheck, FolderOpen, TrendingUp, UserCheck, UserPlus } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useState, useRef, useEffect } from 'react'
 import type { Notificacion } from '@/lib/store'
@@ -27,6 +27,7 @@ const breadcrumbs: Record<string, { parent?: string; parentHref?: string; label:
 function NotifIcon({ tipo }: { tipo: Notificacion['tipo'] }) {
   if (tipo === 'proyecto_nuevo') return <FolderOpen style={{ width: 15, height: 15, color: '#1A56DB' }} />
   if (tipo === 'proyecto_vendido') return <TrendingUp style={{ width: 15, height: 15, color: '#16a34a' }} />
+  if (tipo === 'prospecto_nuevo') return <UserPlus style={{ width: 15, height: 15, color: '#7C3AED' }} />
   return <UserCheck style={{ width: 15, height: 15, color: '#D97706' }} />
 }
 

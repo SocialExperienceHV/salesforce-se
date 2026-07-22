@@ -163,7 +163,7 @@ export type DocumentoTC = {
 
 export type Notificacion = {
   id: string
-  tipo: 'proyecto_nuevo' | 'proyecto_vendido' | 'asignacion'
+  tipo: 'proyecto_nuevo' | 'proyecto_vendido' | 'asignacion' | 'prospecto_nuevo'
   titulo: string
   mensaje: string
   para: string | 'todos'
@@ -496,6 +496,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const newP: Prospecto = { ...p, id: `pr${Date.now()}`, createdAt: new Date().toISOString() }
     setProspectos(prev => [newP, ...prev])
     sbInsert('prospectos', newP.id, newP)
+    // Avisar a todos los KAM (área Comercial) cuando entra un prospecto nuevo
+    personasStore
+      .filter(persona => persona.area === 'Comercial')
+      .forEach(kam => {
+        addNotificacionInternal({
+          tipo: 'prospecto_nuevo',
+          titulo: 'Nuevo prospecto',
+          mensaje: `Se agregó "${p.empresa}" como nuevo prospecto.`,
+          para: kam.id,
+          href: '/prospeccion',
+        })
+      })
   }
 
   function updateProspecto(id: string, changes: Partial<Prospecto>) {
@@ -592,7 +604,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   function addNotificacionInternal(n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) {
-    const newN: Notificacion = { ...n, id: `notif${Date.now()}`, leida: false, createdAt: new Date().toISOString() }
+    // Sufijo aleatorio: cuando se notifica a varias personas en el mismo bucle
+    // (p.ej. todos los KAM), Date.now() solo no alcanza a diferenciarlas y las
+    // filas se pisan en Supabase (mismo id primary key).
+    const newN: Notificacion = { ...n, id: `notif${Date.now()}${Math.random().toString(36).slice(2, 8)}`, leida: false, createdAt: new Date().toISOString() }
     setNotificaciones(prev => [newN, ...prev])
     sbInsert('notificaciones', newN.id, newN)
   }
