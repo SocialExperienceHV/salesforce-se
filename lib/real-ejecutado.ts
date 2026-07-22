@@ -24,8 +24,17 @@ export type RealEjecutado = {
 export const uid = () => Math.random().toString(36).slice(2, 10)
 
 export async function getRealEjecutados(): Promise<RealEjecutado[]> {
-  const { data } = await supabase.from('real_ejecutado').select('data')
-  return (data ?? []).map((r: { data: RealEjecutado }) => r.data)
+  const PAGE = 1000
+  const all: { data: RealEjecutado }[] = []
+  let from = 0
+  for (;;) {
+    const { data } = await supabase.from('real_ejecutado').select('data').range(from, from + PAGE - 1)
+    if (!data || data.length === 0) break
+    all.push(...(data as { data: RealEjecutado }[]))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all.map(r => r.data)
 }
 
 export async function guardarRealEjecutado(re: RealEjecutado) {

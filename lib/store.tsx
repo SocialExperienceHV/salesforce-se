@@ -244,11 +244,19 @@ async function sbGet<T>(table: string): Promise<T[]> {
 }
 
 async function sbGetOverrides(): Promise<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>> {
-  const { data } = await supabase.from('plan_overrides').select('key, data')
+  const PAGE = 1000
+  type Row = { key: string; data: { dias: string[]; estado: 'En proceso' | 'Finalizado' } }
+  const all: Row[] = []
+  let from = 0
+  for (;;) {
+    const { data } = await supabase.from('plan_overrides').select('key, data').range(from, from + PAGE - 1)
+    if (!data || data.length === 0) break
+    all.push(...(data as Row[]))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
   const result: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }> = {}
-  ;(data ?? []).forEach((r: { key: string; data: { dias: string[]; estado: 'En proceso' | 'Finalizado' } }) => {
-    result[r.key] = r.data
-  })
+  all.forEach(r => { result[r.key] = r.data })
   return result
 }
 
