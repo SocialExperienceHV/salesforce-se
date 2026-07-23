@@ -229,7 +229,10 @@ function DetallePanel({ p, clientes, onClose }: { p: Proyecto; clientes: { nombr
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function SeguimientoPage() {
-  const { proyectos, clientes: clientesStore, updateProyecto, registros, personasStore, legalizaciones } = useStore()
+  const { proyectos: proyectosStore, clientes: clientesStore, updateProyecto, registros, personasStore, legalizaciones } = useStore()
+  // Proyectos "OT" de re-numeración: ya se contaron antes bajo otro centro de
+  // costo, así que no deben aparecer ni sumar aquí (ver Proyecto.excluirDeReportes)
+  const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
 
   const [ordenesGespro, setOrdenesGespro] = useState<OrdenGespro[]>([])
   useEffect(() => { getOrdenesGespro().then(setOrdenesGespro).catch(() => setOrdenesGespro([])) }, [])

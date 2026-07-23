@@ -29,6 +29,11 @@ export type Proyecto = {
   personasCreatividad?: string[]
   accionProduccion?: string
   accionCreatividad?: string
+  // Proyectos "OT" de re-numeración/transición que ya se contaron una vez bajo
+  // otro centro de costo: se ocultan de Proyectos y Seguimiento (listas y KPIs)
+  // para no duplicar valores en los reportes, sin borrar el registro (Gespro
+  // sigue necesitando el centro de costo para sus propios cruces).
+  excluirDeReportes?: boolean
   createdAt: string
 }
 

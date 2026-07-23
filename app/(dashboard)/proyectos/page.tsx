@@ -327,7 +327,10 @@ function EditarProyectoModal({ proyecto, onClose, clientesStore, kams }: {
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProyectosPage() {
-  const { proyectos, clientes, updateProyecto, personasStore } = useStore()
+  const { proyectos: proyectosStore, clientes, updateProyecto, personasStore } = useStore()
+  // Proyectos "OT" de re-numeración: ya se contaron antes bajo otro centro de
+  // costo, así que no deben aparecer ni sumar aquí (ver Proyecto.excluirDeReportes)
+  const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
   const [search, setSearch] = useState('')
   const [tipo, setTipo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')
