@@ -14,6 +14,7 @@ const breadcrumbs: Record<string, { parent?: string; parentHref?: string; label:
   '/proyectos/nuevo': { parent: 'Proyectos', parentHref: '/proyectos', label: 'Nuevo proyecto' },
   '/seguimiento':     { parent: 'Proyectos', parentHref: '/proyectos', label: 'Seguimiento' },
   '/ppto':            { parent: 'Proyectos', parentHref: '/proyectos', label: 'PPTO' },
+  '/dashboard-comercial': { parent: 'Proyectos', parentHref: '/proyectos', label: 'Dashboard Comercial' },
   '/trafico':         { parent: 'Operación', label: 'Tráfico' },
   '/calendar':        { parent: 'Operación', label: 'Calendar' },
   '/plan-trabajo':    { parent: 'Operación', label: 'Plan de trabajo' },

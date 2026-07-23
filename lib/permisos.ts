@@ -29,6 +29,7 @@ export const PERMISOS: Record<Rol, string[]> = {
     '/seguimiento',
     '/ppto',
     '/real-ejecutado',
+    '/dashboard-comercial',
     '/trafico',
     '/plan-trabajo',
     '/prospeccion',
@@ -64,6 +65,7 @@ export const PERMISOS: Record<Rol, string[]> = {
 
   'Comercial': [
     '/prospeccion',
+    '/dashboard-comercial',
   ],
 
   'Administración': [
@@ -72,6 +74,7 @@ export const PERMISOS: Record<Rol, string[]> = {
     '/seguimiento',
     '/ppto',
     '/real-ejecutado',
+    '/dashboard-comercial',
     '/trafico',
     '/calendar',
     '/plan-trabajo',

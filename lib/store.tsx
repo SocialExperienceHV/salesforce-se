@@ -177,6 +177,25 @@ export type Notificacion = {
   createdAt: string
 }
 
+// Meta de venta de un cliente para un año dado, desglosada por mes ('1'..'12' → monto).
+// El total anual es simplemente la suma de los 12 meses.
+export type MetaComercial = {
+  id: string
+  cliente: string
+  anio: number
+  meses: Record<string, number>
+  createdAt: string
+}
+
+// Meta global de la agencia para un año, con el mismo desglose mensual. Es un
+// número independiente (no la suma de las metas por cliente).
+export type MetaGlobal = {
+  id: string
+  anio: number
+  meses: Record<string, number>
+  createdAt: string
+}
+
 export type Prospecto = {
   id: string
   empresa: string
@@ -333,6 +352,12 @@ type StoreCtx = {
   addNotificacion: (n: Omit<Notificacion, 'id' | 'leida' | 'createdAt'>) => void
   marcarLeida: (id: string) => void
   marcarTodasLeidas: () => void
+
+  metasComerciales: MetaComercial[]
+  upsertMetaComercial: (cliente: string, anio: number, meses: Record<string, number>) => void
+
+  metasGlobales: MetaGlobal[]
+  upsertMetaGlobal: (anio: number, meses: Record<string, number>) => void
 }
 
 const Ctx = createContext<StoreCtx | null>(null)
@@ -348,6 +373,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [tarjetasCorp, setTarjetasCorp]   = useState<TarjetaCorporativa[]>([])
   const [documentosTC, setDocumentosTC]   = useState<DocumentoTC[]>([])
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
+  const [metasComerciales, setMetasComerciales] = useState<MetaComercial[]>([])
+  const [metasGlobales, setMetasGlobales] = useState<MetaGlobal[]>([])
   const [currentUser, setCurrentUserState] = useState<PersonaStore | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -356,7 +383,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const [
         personasData, proyectosData, clientesData, prospectosData,
         legalizacionesData, tarjetasData, documentosTCData,
-        registrosData, notificacionesData, overridesData
+        registrosData, notificacionesData, overridesData,
+        metasComercialesData, metasGlobalesData
       ] = await Promise.all([
         sbGet<PersonaStore>('personas'),
         sbGet<Proyecto>('proyectos'),
@@ -368,6 +396,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         sbGet<RegistroTiempo>('registros_tiempo'),
         sbGet<Notificacion>('notificaciones'),
         sbGetOverrides(),
+        sbGet<MetaComercial>('metas_comerciales'),
+        sbGet<MetaGlobal>('metas_globales'),
       ])
 
       // Seed personas if DB is empty
@@ -387,6 +417,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setRegistros(registrosData)
       setNotificaciones(notificacionesData)
       setPlanOverrides(overridesData)
+      setMetasComerciales(metasComercialesData)
+      setMetasGlobales(metasGlobalesData)
 
       // Restore logged user
       const uid = getLoggedUserId()
@@ -638,6 +670,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  function upsertMetaComercial(cliente: string, anio: number, meses: Record<string, number>) {
+    // Id determinístico (cliente+año) para que guardar siempre sea un upsert,
+    // sin necesitar buscar primero si ya existía la fila.
+    const id = `mc_${anio}_${cliente.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_')}`
+    setMetasComerciales(prev => {
+      const existing = prev.find(m => m.id === id)
+      const newM: MetaComercial = { id, cliente, anio, meses, createdAt: existing?.createdAt ?? new Date().toISOString() }
+      sbUpsert('metas_comerciales', id, newM)
+      return existing ? prev.map(m => m.id === id ? newM : m) : [newM, ...prev]
+    })
+  }
+
+  function upsertMetaGlobal(anio: number, meses: Record<string, number>) {
+    const id = `mg_${anio}`
+    setMetasGlobales(prev => {
+      const existing = prev.find(m => m.id === id)
+      const newM: MetaGlobal = { id, anio, meses, createdAt: existing?.createdAt ?? new Date().toISOString() }
+      sbUpsert('metas_globales', id, newM)
+      return existing ? prev.map(m => m.id === id ? newM : m) : [newM, ...prev]
+    })
+  }
+
   return (
     <Ctx.Provider value={{
       proyectos, addProyecto, updateProyecto,
@@ -652,6 +706,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tarjetasCorp, addTarjetaCorp, updateTarjetaCorp,
       documentosTC, addDocumentoTC, updateDocumentoTC, deleteDocumentoTC,
       notificaciones, addNotificacion, marcarLeida, marcarTodasLeidas,
+      metasComerciales, upsertMetaComercial,
+      metasGlobales, upsertMetaGlobal,
     }}>
       {children}
     </Ctx.Provider>
