@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import type { Proyecto, MetaComercial, Cliente } from '@/lib/store'
+import type { Proyecto, MetaComercial, MetaKam, Cliente } from '@/lib/store'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -213,6 +213,7 @@ export default function DashboardComercialPage() {
   const {
     proyectos: proyectosStore, clientes: clientesStore, updateCliente, personasStore,
     metasComerciales, upsertMetaComercial, metasGlobales, upsertMetaGlobal,
+    metasKam, upsertMetaKam,
   } = useStore()
   // Igual que Proyectos y Seguimiento: los "OT" de re-numeración no cuentan aquí.
   const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
@@ -223,9 +224,10 @@ export default function DashboardComercialPage() {
     proyectos.forEach(p => { const f = fechaVenta(p); if (f) set.add(f.anio) })
     metasComerciales.forEach(m => set.add(m.anio))
     metasGlobales.forEach(m => set.add(m.anio))
+    metasKam.forEach(m => set.add(m.anio))
     return Array.from(set).sort((a, b) => b - a)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proyectos, metasComerciales, metasGlobales])
+  }, [proyectos, metasComerciales, metasGlobales, metasKam])
 
   const [anio, setAnio] = useState(today.getFullYear())
   const [mes, setMes] = useState('Todos')
@@ -233,13 +235,21 @@ export default function DashboardComercialPage() {
   const [clienteFiltro, setClienteFiltro] = useState('Todos')
   const [editCliente, setEditCliente] = useState<string | null>(null)
   const [editGlobal, setEditGlobal] = useState(false)
+  const [editKam, setEditKam] = useState<string | null>(null)
   const [showInactivos, setShowInactivos] = useState(false)
   const [sortCol, setSortCol] = useState<string | null>('proyeccion')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [sortColKam, setSortColKam] = useState<string | null>('ventaReal')
+  const [sortDirKam, setSortDirKam] = useState<'asc' | 'desc'>('desc')
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortCol(col); setSortDir('desc') }
+  }
+
+  function toggleSortKam(col: string) {
+    if (sortColKam === col) setSortDirKam(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortColKam(col); setSortDirKam('desc') }
   }
 
   const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
@@ -312,6 +322,45 @@ export default function DashboardComercialPage() {
     })
   }, [filas, sortCol, sortDir])
 
+  const metaPorKam = useMemo(() => {
+    const map = new Map<string, MetaKam>()
+    metasKam.filter(m => m.anio === anio).forEach(m => map.set(m.kam, m))
+    return map
+  }, [metasKam, anio])
+
+  // Cumplimiento por KAM — meta propia del KAM (independiente de sus clientes,
+  // igual que la meta global), cruzada contra la suma de venta real de las
+  // cuentas que tiene asignadas dentro del filtro actual.
+  const filasKam = useMemo(() => {
+    const nombresKam = kam === 'Todos'
+      ? Array.from(new Set(personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)))
+      : [kam]
+    return nombresKam.map(nombreKam => {
+      const clientesDelKam = filas.filter(f => f.cliente.ejecutivo === nombreKam)
+      const ventaReal = clientesDelKam.reduce((s, f) => s + f.ventaReal, 0)
+      const meta = metaPorKam.get(nombreKam)
+      const proyeccion = mesKey ? (meta?.meses[mesKey] ?? 0) : sumMeses(meta?.meses)
+      const pctKam = proyeccion > 0 ? (ventaReal / proyeccion) * 100 : null
+      const pctGlobal = metaGlobalValor > 0 ? (ventaReal / metaGlobalValor) * 100 : null
+      return { kam: nombreKam, numClientes: clientesDelKam.length, proyeccion, ventaReal, pctKam, pctGlobal }
+    })
+  }, [kam, personasStore, filas, metaPorKam, mesKey, metaGlobalValor])
+
+  const filasKamOrdenadas = useMemo(() => {
+    if (!sortColKam) return filasKam
+    return [...filasKam].sort((a, b) => {
+      let va: string | number = 0
+      let vb: string | number = 0
+      if      (sortColKam === 'kam')         { va = a.kam;            vb = b.kam }
+      else if (sortColKam === 'proyeccion')  { va = a.proyeccion;     vb = b.proyeccion }
+      else if (sortColKam === 'ventaReal')   { va = a.ventaReal;      vb = b.ventaReal }
+      else if (sortColKam === 'pctKam')      { va = a.pctKam ?? -1;   vb = b.pctKam ?? -1 }
+      else if (sortColKam === 'pctGlobal')   { va = a.pctGlobal ?? -1; vb = b.pctGlobal ?? -1 }
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      return sortDirKam === 'asc' ? cmp : -cmp
+    })
+  }, [filasKam, sortColKam, sortDirKam])
+
   const proyeccionTotal = filas.reduce((s, f) => s + f.proyeccion, 0)
   const ventaRealTotal = filas.reduce((s, f) => s + f.ventaReal, 0)
   const pctCumplimientoGlobal = metaGlobalValor > 0 ? (ventaRealTotal / metaGlobalValor) * 100 : null
@@ -364,6 +413,15 @@ export default function DashboardComercialPage() {
           valores={metaGlobalActual?.meses ?? {}}
           onSave={meses => { upsertMetaGlobal(anio, meses); setEditGlobal(false) }}
           onClose={() => setEditGlobal(false)}
+        />
+      )}
+      {editKam && (
+        <MetaEditorModal
+          titulo={`Meta comercial · ${editKam}`}
+          subtitulo={`Cuota mensual del KAM · ${anio}`}
+          valores={metaPorKam.get(editKam)?.meses ?? {}}
+          onSave={meses => { upsertMetaKam(editKam, anio, meses); setEditKam(null) }}
+          onClose={() => setEditKam(null)}
         />
       )}
       {showInactivos && (
@@ -425,6 +483,103 @@ export default function DashboardComercialPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Cumplimiento por KAM */}
+      <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 16px 0' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Cumplimiento por KAM</div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, marginBottom: 4 }}>Cuota propia de cada KAM frente a la venta real de sus cuentas.</div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                {([
+                  { label: 'KAM',                        col: 'kam' },
+                  { label: 'Clientes' },
+                  { label: 'Meta KAM',                   col: 'proyeccion' },
+                  { label: 'Venta real',                 col: 'ventaReal' },
+                  { label: '% Cumpl. KAM',                col: 'pctKam' },
+                  { label: '% Cumpl. global',             col: 'pctGlobal' },
+                  { label: 'Acción' },
+                ] as { label: string; col?: string }[]).map(({ label, col }) => (
+                  <th key={label} onClick={col ? () => toggleSortKam(col) : undefined}
+                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: col ? 'pointer' : 'default', userSelect: 'none' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {label}
+                      {col && (sortColKam === col
+                        ? sortDirKam === 'asc'
+                          ? <ChevronUp style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                          : <ChevronDown style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                        : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />)}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filasKamOrdenadas.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                    No hay KAM con los filtros seleccionados.
+                  </td>
+                </tr>
+              ) : filasKamOrdenadas.map((k, i) => {
+                const isLast = i === filasKamOrdenadas.length - 1
+                const td = { padding: '12px 14px', fontSize: 13, color: '#374151', borderBottom: isLast ? 'none' : '1px solid #F3F4F6', verticalAlign: 'middle' as const }
+                return (
+                  <tr key={k.kam} onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')} onMouseLeave={e => (e.currentTarget.style.background = '#fff')} style={{ background: '#fff', transition: 'background 0.1s' }}>
+                    {/* KAM */}
+                    <td style={td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#1D4ED8' }}>{k.kam.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
+                        </div>
+                        <span style={{ fontWeight: 500, color: '#111827', fontSize: 13 }}>{k.kam}</span>
+                      </div>
+                    </td>
+                    {/* Clientes */}
+                    <td style={{ ...td, color: '#6B7280' }}>{k.numClientes}</td>
+                    {/* Meta KAM */}
+                    <td style={{ ...td, fontWeight: 600, color: k.proyeccion > 0 ? '#111827' : '#D1D5DB', fontStyle: k.proyeccion > 0 ? 'normal' : 'italic' }}>
+                      {k.proyeccion > 0 ? fmt(k.proyeccion) : 'Sin meta'}
+                    </td>
+                    {/* Venta real */}
+                    <td style={{ ...td, fontWeight: 600, color: k.ventaReal > 0 ? '#15803D' : '#D1D5DB', fontStyle: k.ventaReal > 0 ? 'normal' : 'italic' }}>
+                      {k.ventaReal > 0 ? fmt(k.ventaReal) : '—'}
+                    </td>
+                    {/* % Cumpl. KAM */}
+                    <td style={td}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 90 }}>
+                        <span style={{ fontWeight: 600, color: colorCumplimiento(k.pctKam), fontSize: 13 }}>{pctStr(k.pctKam)}</span>
+                        {k.pctKam != null && (
+                          <div style={{ width: '100%', height: 4, background: '#F3F4F6', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.min(k.pctKam, 100)}%`, height: '100%', background: colorCumplimiento(k.pctKam) }} />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    {/* % Cumpl. global */}
+                    <td style={{ ...td, fontWeight: 500, color: k.pctGlobal != null ? '#374151' : '#D1D5DB' }}>
+                      {pctStr(k.pctGlobal)}
+                    </td>
+                    {/* Acción */}
+                    <td style={td}>
+                      <button onClick={() => setEditKam(k.kam)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#1A56DB', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: '4px 6px' }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+                        <Pencil style={{ width: 12, height: 12 }} />
+                        Editar meta
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Tabla principal */}

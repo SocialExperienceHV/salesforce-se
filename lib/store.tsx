@@ -202,6 +202,16 @@ export type MetaGlobal = {
   createdAt: string
 }
 
+// Meta de venta de un KAM para un año, igual de independiente que la meta global
+// (no es la suma de las metas de sus clientes) — es la cuota propia del KAM.
+export type MetaKam = {
+  id: string
+  kam: string
+  anio: number
+  meses: Record<string, number>
+  createdAt: string
+}
+
 export type Prospecto = {
   id: string
   empresa: string
@@ -364,6 +374,9 @@ type StoreCtx = {
 
   metasGlobales: MetaGlobal[]
   upsertMetaGlobal: (anio: number, meses: Record<string, number>) => void
+
+  metasKam: MetaKam[]
+  upsertMetaKam: (kam: string, anio: number, meses: Record<string, number>) => void
 }
 
 const Ctx = createContext<StoreCtx | null>(null)
@@ -381,6 +394,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [metasComerciales, setMetasComerciales] = useState<MetaComercial[]>([])
   const [metasGlobales, setMetasGlobales] = useState<MetaGlobal[]>([])
+  const [metasKam, setMetasKam] = useState<MetaKam[]>([])
   const [currentUser, setCurrentUserState] = useState<PersonaStore | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -390,7 +404,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         personasData, proyectosData, clientesData, prospectosData,
         legalizacionesData, tarjetasData, documentosTCData,
         registrosData, notificacionesData, overridesData,
-        metasComercialesData, metasGlobalesData
+        metasComercialesData, metasGlobalesData, metasKamData
       ] = await Promise.all([
         sbGet<PersonaStore>('personas'),
         sbGet<Proyecto>('proyectos'),
@@ -404,6 +418,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         sbGetOverrides(),
         sbGet<MetaComercial>('metas_comerciales'),
         sbGet<MetaGlobal>('metas_globales'),
+        sbGet<MetaKam>('metas_kam'),
       ])
 
       // Seed personas if DB is empty
@@ -425,6 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPlanOverrides(overridesData)
       setMetasComerciales(metasComercialesData)
       setMetasGlobales(metasGlobalesData)
+      setMetasKam(metasKamData)
 
       // Restore logged user
       const uid = getLoggedUserId()
@@ -698,6 +714,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  function upsertMetaKam(kam: string, anio: number, meses: Record<string, number>) {
+    const id = `mk_${anio}_${kam.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_')}`
+    setMetasKam(prev => {
+      const existing = prev.find(m => m.id === id)
+      const newM: MetaKam = { id, kam, anio, meses, createdAt: existing?.createdAt ?? new Date().toISOString() }
+      sbUpsert('metas_kam', id, newM)
+      return existing ? prev.map(m => m.id === id ? newM : m) : [newM, ...prev]
+    })
+  }
+
   return (
     <Ctx.Provider value={{
       proyectos, addProyecto, updateProyecto,
@@ -714,6 +740,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notificaciones, addNotificacion, marcarLeida, marcarTodasLeidas,
       metasComerciales, upsertMetaComercial,
       metasGlobales, upsertMetaGlobal,
+      metasKam, upsertMetaKam,
     }}>
       {children}
     </Ctx.Provider>
