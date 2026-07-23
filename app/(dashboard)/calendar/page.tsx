@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Plus, X, Clock, ChevronDown, AlertTriangle, Pencil, Trash2 } from 'lucide-react'
-import { useStore, RegistroTiempo } from '@/lib/store'
+import { useStore, RegistroTiempo, type Proyecto } from '@/lib/store'
 import { TrendingUp, TrendingDown, FolderOpen } from 'lucide-react'
 
 // ─── Config ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,14 @@ function colorForProject(name: string) {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return PALETTE[Math.abs(hash) % PALETTE.length]
+}
+
+// Extrae el año del proyecto (formatos: DD/MM/YYYY o YYYY-MM-DD); null si no tiene fecha
+function anioDeProyecto(p: Proyecto): number | null {
+  const raw = p.fechaEntrega || p.fechaPresentacion || p.fechaInicio
+  if (!raw) return null
+  const year = raw.includes('/') ? parseInt(raw.split('/')[2]) : raw.includes('-') ? parseInt(raw.split('-')[0]) : NaN
+  return isNaN(year) ? null : year
 }
 
 function toTop(time: string) {
@@ -254,6 +262,11 @@ function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onD
   const costoHora = registro.costoHora
   const horas     = horasDiff(horaInicio, horaFin)
   const costoEst  = costoHora * Math.max(horas, 0)
+  // Si el registro es de un proyecto de un año anterior (fuera del filtro de
+  // la lista), igual debe aparecer seleccionable para no perder el valor actual.
+  const opcionesProyecto = proyectosNombres.includes(registro.proyecto)
+    ? proyectosNombres
+    : [registro.proyecto, ...proyectosNombres]
 
   function calcDuracion() {
     const mins = Math.round(horas * 60)
@@ -333,7 +346,7 @@ function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onD
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Proyecto</div>
             <select value={proyecto} onChange={e => setProyecto(e.target.value)} style={selectStyle}>
-              {proyectosNombres.map(p => <option key={p} value={p}>{p}</option>)}
+              {opcionesProyecto.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
 
@@ -547,7 +560,23 @@ export default function CalendarPage() {
     filtroPersona === 'Todos' ? registros : registros.filter(r => r.persona === filtroPersona)
   , [registros, filtroPersona])
 
-  const storeProyectos = proyectos.map(p => p.nombre)
+  // Solo proyectos de este año, ordenados por centro de costo de mayor a menor
+  // (los más grandes son los más recién creados, así que es más probable que
+  // sean los que se estén usando para registrar tiempo).
+  const storeProyectos = useMemo(() => {
+    const anioActual = new Date().getFullYear()
+    return proyectos
+      .filter(p => anioDeProyecto(p) === anioActual)
+      .sort((a, b) => {
+        const ccA = parseInt((a.centroCosto ?? '').trim(), 10)
+        const ccB = parseInt((b.centroCosto ?? '').trim(), 10)
+        if (isNaN(ccA) && isNaN(ccB)) return 0
+        if (isNaN(ccA)) return 1
+        if (isNaN(ccB)) return -1
+        return ccB - ccA
+      })
+      .map(p => p.nombre)
+  }, [proyectos])
 
   function navigate(dir: 1 | -1) {
     if (view === 'Semana') setCursor(addDays(cursor, dir * 7))
