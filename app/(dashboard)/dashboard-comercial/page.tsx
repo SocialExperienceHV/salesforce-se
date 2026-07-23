@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import type { Proyecto, MetaComercial } from '@/lib/store'
+import type { Proyecto, MetaComercial, Cliente } from '@/lib/store'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -134,6 +134,62 @@ function MetaEditorModal({ titulo, subtitulo, valores, onSave, onClose }: {
   )
 }
 
+// ─── Modal: clientes inactivos para proyección (buscar y reactivar) ───────────
+function ClientesInactivosModal({ clientes, onReactivar, onClose }: {
+  clientes: Cliente[]
+  onReactivar: (id: string) => void
+  onClose: () => void
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const filtrados = clientes.filter(c => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 460, maxHeight: '80vh', background: '#fff', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Clientes inactivos para proyección</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>No aparecen en el listado principal de este módulo. Reactívalos si vuelven a aplicar.</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', marginTop: 2, flexShrink: 0 }}>
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        <div style={{ padding: '14px 22px 0' }}>
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9CA3AF' }} />
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar cliente..." autoFocus
+              style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 12, border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, outline: 'none', color: '#111827' }} />
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 22px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtrados.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 13, color: '#9CA3AF' }}>
+              {clientes.length === 0 ? 'No hay clientes inactivos.' : 'Sin resultados para tu búsqueda.'}
+            </div>
+          ) : filtrados.map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', border: '1px solid #F3F4F6', borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: '#fff' }}>{c.iniciales}</span>
+                </div>
+                <span style={{ fontSize: 13, color: '#111827', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nombre}</span>
+              </div>
+              <button onClick={() => onReactivar(c.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}>
+                <RotateCcw style={{ width: 11, height: 11 }} />
+                Reactivar
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Gráfico de barras mensual (proyección vs venta real) ──────────────────────
 function GraficoMensual({ datos }: { datos: { mes: number; proyeccion: number; ventaReal: number; pct: number | null }[] }) {
   const max = Math.max(1, ...datos.map(d => Math.max(d.proyeccion, d.ventaReal)))
@@ -155,7 +211,7 @@ function GraficoMensual({ datos }: { datos: { mes: number; proyeccion: number; v
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function DashboardComercialPage() {
   const {
-    proyectos: proyectosStore, clientes: clientesStore, personasStore,
+    proyectos: proyectosStore, clientes: clientesStore, updateCliente, personasStore,
     metasComerciales, upsertMetaComercial, metasGlobales, upsertMetaGlobal,
   } = useStore()
   // Igual que Proyectos y Seguimiento: los "OT" de re-numeración no cuentan aquí.
@@ -177,6 +233,7 @@ export default function DashboardComercialPage() {
   const [clienteFiltro, setClienteFiltro] = useState('Todos')
   const [editCliente, setEditCliente] = useState<string | null>(null)
   const [editGlobal, setEditGlobal] = useState(false)
+  const [showInactivos, setShowInactivos] = useState(false)
   const [sortCol, setSortCol] = useState<string | null>('proyeccion')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
@@ -186,8 +243,9 @@ export default function DashboardComercialPage() {
   }
 
   const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
-  const clientesFiltroOpts = ['Todos', ...clientesStore.map(c => c.nombre)]
+  const clientesFiltroOpts = ['Todos', ...clientesStore.filter(c => !c.inactivoComercial).map(c => c.nombre)]
   const mesesFiltro = ['Todos', ...MESES_ES]
+  const clientesInactivos = useMemo(() => clientesStore.filter(c => c.inactivoComercial), [clientesStore])
 
   const mesKey = mes === 'Todos' ? null : String(MESES_ES.indexOf(mes) + 1)
 
@@ -219,6 +277,7 @@ export default function DashboardComercialPage() {
   const clientesFiltrados = useMemo(() => {
     return clientesStore.filter(c => {
       if (c.estado !== 'Activo') return false
+      if (c.inactivoComercial) return false
       if (kam !== 'Todos' && c.ejecutivo !== kam) return false
       if (clienteFiltro !== 'Todos' && c.nombre !== clienteFiltro) return false
       return true
@@ -307,6 +366,13 @@ export default function DashboardComercialPage() {
           onClose={() => setEditGlobal(false)}
         />
       )}
+      {showInactivos && (
+        <ClientesInactivosModal
+          clientes={clientesInactivos}
+          onReactivar={id => updateCliente(id, { inactivoComercial: false })}
+          onClose={() => setShowInactivos(false)}
+        />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -316,11 +382,18 @@ export default function DashboardComercialPage() {
             Cumplimiento de metas comerciales por cliente y KAM, frente a la venta real de Seguimiento de Proyectos.
           </p>
         </div>
-        <button onClick={() => setEditGlobal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', background: '#1A56DB', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          <Target style={{ width: 14, height: 14 }} />
-          Editar meta global
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => setShowInactivos(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Archive style={{ width: 14, height: 14 }} />
+            Clientes inactivos ({clientesInactivos.length})
+          </button>
+          <button onClick={() => setEditGlobal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', background: '#1A56DB', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Target style={{ width: 14, height: 14 }} />
+            Editar meta global
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -442,13 +515,22 @@ export default function DashboardComercialPage() {
                     </td>
                     {/* Acción */}
                     <td style={td}>
-                      <button onClick={() => setEditCliente(f.cliente.nombre)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#1A56DB', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: '4px 6px' }}
-                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
-                        <Pencil style={{ width: 12, height: 12 }} />
-                        Editar meta
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <button onClick={() => setEditCliente(f.cliente.nombre)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#1A56DB', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: '4px 6px' }}
+                          onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+                          <Pencil style={{ width: 12, height: 12 }} />
+                          Editar meta
+                        </button>
+                        <button onClick={() => updateCliente(f.cliente.id, { inactivoComercial: true })}
+                          title="Marcar inactivo para proyección"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#B91C1C' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9CA3AF' }}>
+                          <Archive style={{ width: 13, height: 13 }} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -456,8 +538,15 @@ export default function DashboardComercialPage() {
             </tbody>
           </table>
         </div>
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #F3F4F6' }}>
-          <span style={{ fontSize: 13, color: '#6B7280' }}>Mostrando {filasOrdenadas.length} clientes activos</span>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#6B7280' }}>Mostrando {filasOrdenadas.length} clientes activos para proyección</span>
+          {clientesInactivos.length > 0 && (
+            <button onClick={() => setShowInactivos(true)} style={{ fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+              onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+              {clientesInactivos.length} cliente{clientesInactivos.length === 1 ? '' : 's'} inactivo{clientesInactivos.length === 1 ? '' : 's'} para proyección
+            </button>
+          )}
         </div>
       </div>
 

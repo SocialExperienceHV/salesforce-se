@@ -84,6 +84,12 @@ export type Cliente = {
   estado: 'Activo' | 'Inactivo'
   createdAt: string
   contactos?: ContactoCliente[]
+  // Clientes históricos a los que ya no se les vende, pero que se mantienen en
+  // el sistema (Clientes, Proyectos, Seguimiento no se ven afectados). Solo se
+  // usa para sacarlos del listado de Dashboard Comercial, evitando llenarlo de
+  // cuentas que ya no aplican para proyección; se puede reactivar en cualquier
+  // momento desde ese mismo módulo.
+  inactivoComercial?: boolean
 }
 
 export type GastoLegalizacion = {
