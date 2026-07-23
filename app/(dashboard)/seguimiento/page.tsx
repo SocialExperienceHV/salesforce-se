@@ -302,8 +302,10 @@ export default function SeguimientoPage() {
   const [estado, setEstado] = useState('Todos')
   const [search, setSearch] = useState('')
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // Por defecto, ordenado por centro de costo de mayor a menor (los más
+  // grandes son los más recién creados, así que es más probable que se estén usando)
+  const [sortCol, setSortCol] = useState<string | null>('centroCosto')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -354,11 +356,12 @@ export default function SeguimientoPage() {
     return [...filtered].sort((a, b) => {
       let va: string | number = ''
       let vb: string | number = ''
-      if      (sortCol === 'cliente')   { va = a.cliente;           vb = b.cliente }
-      else if (sortCol === 'nombre')    { va = a.nombre;            vb = b.nombre }
-      else if (sortCol === 'ejecutivo') { va = a.ejecutivo;         vb = b.ejecutivo }
-      else if (sortCol === 'estado')    { va = a.estadoComercial;   vb = b.estadoComercial }
-      else if (sortCol === 'monto')     { va = a.monto;             vb = b.monto }
+      if      (sortCol === 'cliente')     { va = a.cliente;           vb = b.cliente }
+      else if (sortCol === 'nombre')      { va = a.nombre;            vb = b.nombre }
+      else if (sortCol === 'ejecutivo')   { va = a.ejecutivo;         vb = b.ejecutivo }
+      else if (sortCol === 'estado')      { va = a.estadoComercial;   vb = b.estadoComercial }
+      else if (sortCol === 'monto')       { va = a.monto;             vb = b.monto }
+      else if (sortCol === 'centroCosto') { va = parseInt(a.centroCosto ?? '', 10) || -1; vb = parseInt(b.centroCosto ?? '', 10) || -1 }
       const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va ?? '').localeCompare(String(vb ?? ''), 'es')
       return sortDir === 'asc' ? cmp : -cmp
     })
@@ -454,7 +457,7 @@ export default function SeguimientoPage() {
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
-                  { label: 'Centro costos' },
+                  { label: 'Centro costos',     col: 'centroCosto' },
                   { label: 'Proyecto',          col: 'nombre' },
                   { label: 'Cliente',           col: 'cliente' },
                   { label: 'KAM',               col: 'ejecutivo' },
