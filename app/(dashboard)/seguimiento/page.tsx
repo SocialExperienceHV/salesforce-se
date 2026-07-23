@@ -275,9 +275,13 @@ export default function SeguimientoPage() {
   // gastos de legalizaciones (Calendar 2.0), igual que "Total de costos" en Gespro.
   const costosPorCentroCosto = useMemo(() => {
     const map: Record<string, number> = {}
+    const proyectoPorId = new Map(proyectos.map(p => [p.id, p]))
     ordenesGespro.forEach(o => {
-      if (!o.centroCosto) return
-      map[o.centroCosto] = (map[o.centroCosto] ?? 0) + o.valor
+      // Algunas órdenes (p.ej. costos históricos cargados por proyectoId) no
+      // traen centroCosto propio; en ese caso se resuelve vía el proyecto real.
+      const cc = (o.proyectoId ? proyectoPorId.get(o.proyectoId)?.centroCosto : undefined) || o.centroCosto
+      if (!cc) return
+      map[cc] = (map[cc] ?? 0) + o.valor
     })
     legalizaciones.forEach(l => {
       l.gastos?.forEach(g => {
@@ -287,7 +291,7 @@ export default function SeguimientoPage() {
       })
     })
     return map
-  }, [ordenesGespro, legalizaciones])
+  }, [ordenesGespro, legalizaciones, proyectos])
 
   const today = new Date()
   const [periodo, setPeriodo] = useState('Año')
