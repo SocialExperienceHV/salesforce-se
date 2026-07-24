@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw } from 'lucide-react'
+import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw, Gauge } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { Proyecto, MetaComercial, MetaKam, Cliente } from '@/lib/store'
 
@@ -27,6 +27,13 @@ function colorCumplimiento(p: number | null): string {
 function sumMeses(meses: Record<string, number> | undefined): number {
   if (!meses) return 0
   return Object.values(meses).reduce((s, v) => s + (v || 0), 0)
+}
+// Suma solo los meses 1..hasta (para comparar lo acumulado a la fecha, no el año completo)
+function sumMesesHasta(meses: Record<string, number> | undefined, hasta: number): number {
+  if (!meses || hasta <= 0) return 0
+  let s = 0
+  for (let i = 1; i <= hasta; i++) s += meses[String(i)] ?? 0
+  return s
 }
 
 // Fecha de venta de un proyecto — mismo criterio que Seguimiento de Proyectos
@@ -259,6 +266,12 @@ export default function DashboardComercialPage() {
 
   const mesKey = mes === 'Todos' ? null : String(MESES_ES.indexOf(mes) + 1)
 
+  // Mes hasta el cual comparar "lo que debería llevar acumulado a la fecha" —
+  // usa el mes calendario real de hoy, no el filtro de Mes (ese es para ver un
+  // mes puntual; esto es "cómo vamos respecto a hoy", independiente del filtro).
+  const mesRitmo = anio < today.getFullYear() ? 12 : anio > today.getFullYear() ? 0 : today.getMonth() + 1
+  const mesRitmoLabel = mesRitmo >= 1 && mesRitmo <= 12 ? MESES_CORTO[mesRitmo - 1] : null
+
   // Venta real (proyectos Vendidos) por cliente y mes, del año seleccionado —
   // se alimenta automáticamente de Seguimiento de Proyectos, nunca se edita aquí.
   const ventaPorClienteMes = useMemo(() => {
@@ -302,9 +315,14 @@ export default function DashboardComercialPage() {
       const ventaReal = mesKey ? (ventaMeses?.[mesKey] ?? 0) : sumMeses(ventaMeses)
       const pctCliente = proyeccion > 0 ? (ventaReal / proyeccion) * 100 : null
       const pctGlobal = metaGlobalValor > 0 ? (ventaReal / metaGlobalValor) * 100 : null
-      return { cliente: c, proyeccion, ventaReal, pctCliente, pctGlobal }
+      // Ritmo: lo vendido hasta hoy vs. lo que debería llevar acumulado a la
+      // fecha según la meta mensual (no el año completo dividido en 12).
+      const metaHastaHoy = sumMesesHasta(meta?.meses, mesRitmo)
+      const ventaHastaHoy = sumMesesHasta(ventaMeses, mesRitmo)
+      const pctRitmo = metaHastaHoy > 0 ? (ventaHastaHoy / metaHastaHoy) * 100 : null
+      return { cliente: c, proyeccion, ventaReal, pctCliente, pctGlobal, ventaHastaHoy, pctRitmo }
     })
-  }, [clientesFiltrados, metaPorCliente, ventaPorClienteMes, mesKey, metaGlobalValor])
+  }, [clientesFiltrados, metaPorCliente, ventaPorClienteMes, mesKey, metaGlobalValor, mesRitmo])
 
   const filasOrdenadas = useMemo(() => {
     if (!sortCol) return filas
@@ -317,6 +335,7 @@ export default function DashboardComercialPage() {
       else if (sortCol === 'ventaReal')   { va = a.ventaReal;         vb = b.ventaReal }
       else if (sortCol === 'pctCliente')  { va = a.pctCliente ?? -1;  vb = b.pctCliente ?? -1 }
       else if (sortCol === 'pctGlobal')   { va = a.pctGlobal ?? -1;   vb = b.pctGlobal ?? -1 }
+      else if (sortCol === 'pctRitmo')    { va = a.pctRitmo ?? -1;    vb = b.pctRitmo ?? -1 }
       const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
       return sortDir === 'asc' ? cmp : -cmp
     })
@@ -342,9 +361,12 @@ export default function DashboardComercialPage() {
       const proyeccion = mesKey ? (meta?.meses[mesKey] ?? 0) : sumMeses(meta?.meses)
       const pctKam = proyeccion > 0 ? (ventaReal / proyeccion) * 100 : null
       const pctGlobal = metaGlobalValor > 0 ? (ventaReal / metaGlobalValor) * 100 : null
-      return { kam: nombreKam, numClientes: clientesDelKam.length, proyeccion, ventaReal, pctKam, pctGlobal }
+      const metaHastaHoy = sumMesesHasta(meta?.meses, mesRitmo)
+      const ventaHastaHoy = clientesDelKam.reduce((s, f) => s + f.ventaHastaHoy, 0)
+      const pctRitmo = metaHastaHoy > 0 ? (ventaHastaHoy / metaHastaHoy) * 100 : null
+      return { kam: nombreKam, numClientes: clientesDelKam.length, proyeccion, ventaReal, pctKam, pctGlobal, pctRitmo }
     })
-  }, [kam, personasStore, filas, metaPorKam, mesKey, metaGlobalValor])
+  }, [kam, personasStore, filas, metaPorKam, mesKey, metaGlobalValor, mesRitmo])
 
   const filasKamOrdenadas = useMemo(() => {
     if (!sortColKam) return filasKam
@@ -356,6 +378,7 @@ export default function DashboardComercialPage() {
       else if (sortColKam === 'ventaReal')   { va = a.ventaReal;      vb = b.ventaReal }
       else if (sortColKam === 'pctKam')      { va = a.pctKam ?? -1;   vb = b.pctKam ?? -1 }
       else if (sortColKam === 'pctGlobal')   { va = a.pctGlobal ?? -1; vb = b.pctGlobal ?? -1 }
+      else if (sortColKam === 'pctRitmo')    { va = a.pctRitmo ?? -1;  vb = b.pctRitmo ?? -1 }
       const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
       return sortDirKam === 'asc' ? cmp : -cmp
     })
@@ -365,6 +388,12 @@ export default function DashboardComercialPage() {
   const ventaRealTotal = filas.reduce((s, f) => s + f.ventaReal, 0)
   const pctCumplimientoGlobal = metaGlobalValor > 0 ? (ventaRealTotal / metaGlobalValor) * 100 : null
   const clientesConVenta = filas.filter(f => f.ventaReal > 0).length
+
+  // Ritmo global: lo vendido hasta hoy (de todos los clientes filtrados) vs. lo
+  // que la meta global dice que deberíamos llevar acumulado a esta fecha.
+  const metaGlobalHastaHoy = sumMesesHasta(metaGlobalActual?.meses, mesRitmo)
+  const ventaHastaHoyTotal = filas.reduce((s, f) => s + f.ventaHastaHoy, 0)
+  const pctRitmoGlobal = metaGlobalHastaHoy > 0 ? (ventaHastaHoyTotal / metaGlobalHastaHoy) * 100 : null
 
   const vistaMensual = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
@@ -386,6 +415,7 @@ export default function DashboardComercialPage() {
     { label: 'Proyección total', value: fmtK(proyeccionTotal), Icon: DollarSign, bg: '#EFF6FF', ic: '#1A56DB' },
     { label: 'Venta real total', value: fmtK(ventaRealTotal), Icon: TrendingUp, bg: '#ECFDF5', ic: '#0D9488' },
     { label: '% Cumplimiento global', value: pctStr(pctCumplimientoGlobal), Icon: Percent, bg: '#F0FDF4', ic: '#16A34A' },
+    { label: `% Ritmo del año${mesRitmoLabel ? ` (a ${mesRitmoLabel})` : ''}`, value: pctStr(pctRitmoGlobal), Icon: Gauge, bg: '#FFFBEB', ic: '#D97706' },
     { label: 'Clientes con venta', value: `${clientesConVenta} / ${filas.length}`, Icon: Users, bg: '#FFF7ED', ic: '#EA580C' },
   ]
 
@@ -471,7 +501,7 @@ export default function DashboardComercialPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
         {kpis.map(({ label, value, Icon, bg, ic }) => (
           <div key={label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 42, height: 42, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -502,9 +532,10 @@ export default function DashboardComercialPage() {
                   { label: 'Venta real',                 col: 'ventaReal' },
                   { label: '% Cumpl. KAM',                col: 'pctKam' },
                   { label: '% Cumpl. global',             col: 'pctGlobal' },
+                  { label: `% Ritmo${mesRitmoLabel ? ` (a ${mesRitmoLabel})` : ''}`, col: 'pctRitmo', title: 'Compara lo vendido hasta hoy contra lo que debería llevar acumulado a esta fecha, según la meta mensual.' },
                   { label: 'Acción' },
-                ] as { label: string; col?: string }[]).map(({ label, col }) => (
-                  <th key={label} onClick={col ? () => toggleSortKam(col) : undefined}
+                ] as { label: string; col?: string; title?: string }[]).map(({ label, col, title }) => (
+                  <th key={label} onClick={col ? () => toggleSortKam(col) : undefined} title={title}
                     style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: col ? 'pointer' : 'default', userSelect: 'none' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       {label}
@@ -521,7 +552,7 @@ export default function DashboardComercialPage() {
             <tbody>
               {filasKamOrdenadas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={8} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay KAM con los filtros seleccionados.
                   </td>
                 </tr>
@@ -564,6 +595,10 @@ export default function DashboardComercialPage() {
                     <td style={{ ...td, fontWeight: 500, color: k.pctGlobal != null ? '#374151' : '#D1D5DB' }}>
                       {pctStr(k.pctGlobal)}
                     </td>
+                    {/* % Ritmo */}
+                    <td style={{ ...td, fontWeight: 600, color: colorCumplimiento(k.pctRitmo) }}>
+                      {pctStr(k.pctRitmo)}
+                    </td>
                     {/* Acción */}
                     <td style={td}>
                       <button onClick={() => setEditKam(k.kam)}
@@ -589,16 +624,17 @@ export default function DashboardComercialPage() {
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
-                  { label: 'Cliente',                      col: 'cliente' },
+                  { label: 'Cliente',                      col: 'cliente', width: 150 },
                   { label: 'KAM',                           col: 'kam' },
                   { label: 'Proyección',                    col: 'proyeccion' },
                   { label: 'Venta real',                    col: 'ventaReal' },
                   { label: '% Cumpl. cliente',              col: 'pctCliente' },
                   { label: '% Cumpl. global',                col: 'pctGlobal' },
+                  { label: `% Ritmo${mesRitmoLabel ? ` (a ${mesRitmoLabel})` : ''}`, col: 'pctRitmo', title: 'Compara lo vendido hasta hoy contra lo que debería llevar acumulado a esta fecha, según la meta mensual.' },
                   { label: 'Acción' },
-                ] as { label: string; col?: string }[]).map(({ label, col }) => (
-                  <th key={label} onClick={col ? () => toggleSort(col) : undefined}
-                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: col ? 'pointer' : 'default', userSelect: 'none' }}>
+                ] as { label: string; col?: string; width?: number; title?: string }[]).map(({ label, col, width, title }) => (
+                  <th key={label} onClick={col ? () => toggleSort(col) : undefined} title={title}
+                    style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6B7280', textAlign: 'left', whiteSpace: 'nowrap', cursor: col ? 'pointer' : 'default', userSelect: 'none', width }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       {label}
                       {col && (sortCol === col
@@ -614,7 +650,7 @@ export default function DashboardComercialPage() {
             <tbody>
               {filasOrdenadas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={8} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay clientes activos con los filtros seleccionados.
                   </td>
                 </tr>
@@ -624,16 +660,16 @@ export default function DashboardComercialPage() {
                 return (
                   <tr key={f.cliente.id} onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')} onMouseLeave={e => (e.currentTarget.style.background = '#fff')} style={{ background: '#fff', transition: 'background 0.1s' }}>
                     {/* Cliente */}
-                    <td style={td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <td style={{ ...td, width: 150, maxWidth: 150 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }} title={f.cliente.nombre}>
                         {f.cliente.logo ? (
-                          <img src={f.cliente.logo} alt={f.cliente.nombre} style={{ width: 26, height: 26, borderRadius: 4, objectFit: 'contain', background: '#F9FAFB', border: '1px solid #E5E7EB' }} />
+                          <img src={f.cliente.logo} alt={f.cliente.nombre} style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'contain', background: '#F9FAFB', border: '1px solid #E5E7EB', flexShrink: 0 }} />
                         ) : (
-                          <div style={{ width: 26, height: 26, borderRadius: '50%', background: f.cliente.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: '50%', background: f.cliente.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <span style={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>{f.cliente.iniciales}</span>
                           </div>
                         )}
-                        <span style={{ fontWeight: 500, color: '#111827', fontSize: 13 }}>{f.cliente.nombre}</span>
+                        <span style={{ fontWeight: 500, color: '#111827', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.cliente.nombre}</span>
                       </div>
                     </td>
                     {/* KAM */}
@@ -667,6 +703,10 @@ export default function DashboardComercialPage() {
                     {/* % Cumpl. global */}
                     <td style={{ ...td, fontWeight: 500, color: f.pctGlobal != null ? '#374151' : '#D1D5DB' }}>
                       {pctStr(f.pctGlobal)}
+                    </td>
+                    {/* % Ritmo */}
+                    <td style={{ ...td, fontWeight: 600, color: colorCumplimiento(f.pctRitmo) }}>
+                      {pctStr(f.pctRitmo)}
                     </td>
                     {/* Acción */}
                     <td style={td}>
