@@ -117,6 +117,15 @@ export default function RealEjecutadoPage() {
     return o.valor - asignado
   }
 
+  // Si el gasto de Gespro asignado a una fila se borra allá (o se le cambia el
+  // centro de costo), la asignación queda huérfana: se sigue mostrando como
+  // "Gasto eliminado" para que se pueda quitar o reasignar, pero no debe seguir
+  // sumando como costo real — si no, el total ordenado queda inflado con dinero
+  // fantasma que ya no corresponde a ningún gasto existente.
+  function totalValido(asigs: AsignacionGasto[]): number {
+    return asigs.filter(a => ordenes.some(o => o.id === a.gastoId)).reduce((s, a) => s + a.monto, 0)
+  }
+
   // Solo Órdenes de compra se asignan fila por fila. Compra con tarjeta y Anticipos
   // se toman como un total automático del centro de costo (ver totalTarjeta/totalAnticipos
   // más abajo), así que no aparecen como opción para asignar a una fila puntual.
@@ -181,7 +190,7 @@ export default function RealEjecutadoPage() {
     const nueva: AsignacionGasto = { id: uid(), rowId, gastoId: gasto.id, modalidad: gasto.modalidad, monto, createdAt: new Date().toISOString() }
     const actualizado: RealEjecutado = { ...realSel, asignaciones: [...realSel.asignaciones, nueva] }
     await persistirReal(actualizado)
-    const totalFila = actualizado.asignaciones.filter(a => a.rowId === rowId).reduce((s, a) => s + a.monto, 0)
+    const totalFila = totalValido(actualizado.asignaciones.filter(a => a.rowId === rowId))
     await actualizarOrdenadoFila(budgetSel, rowId, totalFila)
   }
 
@@ -191,7 +200,7 @@ export default function RealEjecutadoPage() {
     if (!asig) return
     const actualizado: RealEjecutado = { ...realSel, asignaciones: realSel.asignaciones.filter(a => a.id !== asigId) }
     await persistirReal(actualizado)
-    const totalFila = actualizado.asignaciones.filter(a => a.rowId === asig.rowId).reduce((s, a) => s + a.monto, 0)
+    const totalFila = totalValido(actualizado.asignaciones.filter(a => a.rowId === asig.rowId))
     await actualizarOrdenadoFila(budgetSel, asig.rowId, totalFila)
   }
 
@@ -328,16 +337,19 @@ export default function RealEjecutadoPage() {
         <table>
           <thead>
             <tr>
-              <th>Proceso</th><th className="col-item">Ítem</th><th className="r">Costo unidad</th>
-              <th className="r">Cant</th><th className="r">Días</th><th className="r">Costo total</th>
-              <th className="col-ordenado">Costo total ordenado (real)</th>
+              <th>Proceso</th><th className="col-item">Ítem</th><th className="r">Venta unidad</th>
+              <th className="r">Cant</th><th className="r">Días</th><th className="r">Venta total</th>
+              <th className="r" title="Lo que el presupuesto (PPTO) proyectó gastar en esta fila, no lo que se le cobra al cliente">Costo proyectado</th>
+              <th className="col-ordenado">Costo real (ordenado)</th>
+              <th className="r" title="Costo real ordenado / costo proyectado">% Ejecutado</th>
             </tr>
           </thead>
           <tbody>
             {budgetSel.rows.map(r => {
               const c = calcRow(r, budgetSel.margenPct)
               const asigsFila = realSel.asignaciones.filter(a => a.rowId === r.id)
-              const totalFila = asigsFila.reduce((s, a) => s + a.monto, 0)
+              const totalFila = totalValido(asigsFila)
+              const pctEjecutado = c.costoRealTotal > 0 ? (totalFila / c.costoRealTotal) * 100 : null
               return (
                 <tr key={r.id} className={r.adicional ? 'fila-adicional' : ''}>
                   <td className="col-proc">
@@ -366,13 +378,14 @@ export default function RealEjecutadoPage() {
                       : r.dias}
                   </td>
                   <td className="r calc">{fmt(c.costoTotal)}</td>
+                  <td className="r calc dim">{c.costoRealTotal ? fmt(c.costoRealTotal) : '—'}</td>
                   <td className="ordenadocell">
                     <div className="ordenadototal">{fmt(totalFila)}</div>
                     {asigsFila.map(a => {
                       const o = ordenes.find(x => x.id === a.gastoId)
                       return (
-                        <div key={a.id} className="asigchip">
-                          <span className="asignom">{o ? nombreGasto(o, false) : 'Gasto eliminado'}</span>
+                        <div key={a.id} className={`asigchip${o ? '' : ' asigchip-huerfana'}`} title={o ? undefined : 'Este gasto ya no existe en Gespro: no suma al total, quítalo o asigna otro'}>
+                          <span className="asignom">{o ? nombreGasto(o, false) : '⚠ Gasto eliminado (no suma)'}</span>
                           <span className="asigmonto">{fmt(a.monto)}</span>
                           <button className="asigx" onClick={() => quitarAsignacion(a.id)} title="Quitar">✕</button>
                         </div>
@@ -383,6 +396,9 @@ export default function RealEjecutadoPage() {
                       {r.adicional && <button className="quitarfila" onClick={() => eliminarFilaAdicional(r.id)}>Quitar fila</button>}
                     </div>
                   </td>
+                  <td className="r calc" style={{ color: pctEjecutado == null ? '#9aa398' : pctEjecutado <= 100 ? '#0e7a52' : '#b3261e', fontWeight: 700 }}>
+                    {pctEjecutado != null ? pctEjecutado.toFixed(0) + '%' : '—'}
+                  </td>
                 </tr>
               )
             })}
@@ -391,7 +407,9 @@ export default function RealEjecutadoPage() {
             <tr>
               <td colSpan={5}>TOTALES</td>
               <td className="r calc">{fmt(t.subtotal)}</td>
+              <td className="r calc">{fmt(t.costoProy)}</td>
               <td className="r calc">{fmt(t.ordenado)}</td>
+              <td className="r calc">{t.costoProy > 0 ? ((t.ordenado / t.costoProy) * 100).toFixed(0) + '%' : '—'}</td>
             </tr>
           </tfoot>
         </table>
@@ -404,6 +422,15 @@ export default function RealEjecutadoPage() {
           <div className="kv"><span>Subtotal</span><span className="num">{money(t.subtotal)}</span></div>
           <div className="kv"><span>Utilidad de agencia ({budgetSel.agenciaPct || 0}%)</span><span className="num">{money(t.utilAgencia)}</span></div>
           <div className="kv total"><span>Total antes de IVA</span><span className="num">{money(t.totalAntesIva)}</span></div>
+        </div>
+        <div className="rescard">
+          <h3>Costo proyectado vs. real</h3>
+          <div className="kv"><span>Costo proyectado (PPTO)</span><span className="num">{money(t.costoProy)}</span></div>
+          <div className="kv"><span>Costo real total (todo incluido)</span><span className="num">{money(costoRealCompleto)}</span></div>
+          <div className="kv total"><span>Diferencia (proy. − real)</span><span className="num" style={{ color: (t.costoProy - costoRealCompleto) >= 0 ? '#0e7a52' : '#b3261e' }}>{money(t.costoProy - costoRealCompleto)}</span></div>
+          <div className="bigpct num" style={{ color: t.costoProy > 0 ? (costoRealCompleto <= t.costoProy ? '#0e7a52' : '#b3261e') : '#8a8f88' }}>
+            {t.costoProy > 0 ? ((costoRealCompleto / t.costoProy) * 100).toFixed(1).replace('.', ',') + ' % ejecutado' : '—'}
+          </div>
         </div>
         <div className="rescard">
           <h3>Real ejecutado</h3>
@@ -495,17 +522,21 @@ function Styles() {
 .realej .vfecha{font-size:12px;color:#6d746c;margin-top:2px}
 .realej .vtotal{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:14px;font-weight:700;color:#191c19}
 .realej .gridwrap{overflow-x:auto;background:#fff;border:1px solid #dde1d8;border-radius:12px;margin-bottom:14px}
-.realej table{border-collapse:collapse;width:100%;min-width:1000px}
+.realej table{border-collapse:collapse;width:100%;min-width:1250px}
 .realej th{position:sticky;top:0;background:#5b9bd5;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:2px solid #4a86ba;white-space:nowrap}
 .realej th.r,.realej td.r{text-align:right}
 .realej td{border-bottom:1px solid #dde1d8;padding:8px;vertical-align:top;font-size:13px}
 .realej .col-item{min-width:260px}
 .realej .col-proc{font-weight:700;text-transform:uppercase;font-size:12px}
 .realej .calc{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.realej .calc.dim{color:#9aa098}
 .realej .col-ordenado{min-width:260px}
 .realej .ordenadocell{min-width:260px}
 .realej .ordenadototal{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-weight:700;font-size:14px;color:#191c19;margin-bottom:6px}
 .realej .asigchip{display:flex;align-items:center;gap:6px;background:#f7f9f3;border:1px solid #e6e9e1;border-radius:8px;padding:4px 8px;margin-bottom:4px;font-size:11px}
+.realej .asigchip-huerfana{background:#FFFBEB;border-color:#FDE68A}
+.realej .asigchip-huerfana .asignom{color:#92400E}
+.realej .asigchip-huerfana .asigmonto{color:#92400E;text-decoration:line-through}
 .realej .asignom{flex:1;color:#191c19;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .realej .asigmonto{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:#0e7a52;font-weight:700;flex-shrink:0}
 .realej .asigx{border:none;background:none;color:#b0b6ad;cursor:pointer;font-size:11px;padding:0 2px;flex-shrink:0}
@@ -525,7 +556,7 @@ function Styles() {
 .realej .addfila{margin:10px 0 0;border:1px dashed #fca5a5;background:#fff;color:#B91C1C;border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .realej .addfila:hover{border-color:#b91c1c;background:#FEF2F2}
 .realej tfoot td{background:#7f7f7f;color:#fff;font-weight:700;border-top:2px solid #666}
-.realej .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:700px}
+.realej .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:1080px}
 .realej .rescard{background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:14px 16px}
 .realej .rescard h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#6d746c}
 .realej .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13.5px}
