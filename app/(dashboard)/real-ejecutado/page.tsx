@@ -385,8 +385,8 @@ export default function RealEjecutadoPage() {
                       ? <input className="in-inline r small" value={r.dias || ''} onChange={e => actualizarFila(r.id, { dias: parseNum(e.target.value) })} />
                       : r.dias}
                   </td>
-                  <td className="r calc">{fmt(c.costoTotal)}</td>
-                  <td className="r calc dim">{c.costoRealTotal ? fmt(c.costoRealTotal) : '—'}</td>
+                  <td className="r calc dim">{fmt(c.costoTotal)}</td>
+                  <td className="r calc">{c.costoRealTotal ? fmt(c.costoRealTotal) : '—'}</td>
                   <td className="ordenadocell">
                     <div className="ordenadototal">{fmt(totalFila)}</div>
                     {asigsFila.map(a => {
