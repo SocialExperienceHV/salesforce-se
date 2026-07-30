@@ -138,6 +138,14 @@ export default function RealEjecutadoPage() {
     () => gastosCC.filter(o => o.modalidad === 'Compra con tarjeta').reduce((s, o) => s + o.valor, 0),
     [gastosCC],
   )
+  // Total de TODAS las órdenes de compra del centro de costo en Gespro, estén o
+  // no ya asignadas a una fila del presupuesto. "Total ordenado" (t.ordenado)
+  // solo cuenta lo que se ha asignado manualmente fila por fila, así que puede
+  // quedar por debajo de este total si hay órdenes sin asignar todavía.
+  const totalGespro = useMemo(
+    () => gastosCC.filter(o => o.modalidad === 'Orden de compra').reduce((s, o) => s + o.valor, 0),
+    [gastosCC],
+  )
   // Anticipos "solicitados" en Gespro = anticipos creados directo en el módulo
   // Ordenes de Gespro + los gastos de Legalizaciones de Calendar 2.0 que apliquen
   // a este centro de costo (mismo criterio que usa la vista de Gespro: suma
@@ -437,6 +445,10 @@ export default function RealEjecutadoPage() {
           <div className="kv"><span>Compra con tarjeta</span><span className="num">{money(totalTarjeta)}</span></div>
           <div className="kv"><span>Anticipos solicitados</span><span className="num">{money(totalAnticipos)}</span></div>
           <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
+          <div className="kv" title="Todas las órdenes de compra del centro de costo en Gespro, estén o no ya asignadas a una fila">
+            <span>Total Gespro</span>
+            <span className="num" style={{ color: totalGespro !== t.ordenado ? '#b3261e' : undefined }}>{money(totalGespro)}</span>
+          </div>
           <div className="kv total"><span>Utilidad real</span><span className="num">{money(utilRealCompleta)}</span></div>
           <div className="bigpct num" style={{ color: utilColor(pctRealCompleto) }}>{isFinite(pctRealCompleto) ? (pctRealCompleto * 100).toFixed(1).replace('.', ',') + ' %' : '—'}</div>
           <div className="bar"><i style={{ width: Math.max(0, Math.min(100, (pctRealCompleto || 0) * 100)) + '%', background: utilColor(pctRealCompleto) }}></i></div>
