@@ -63,6 +63,7 @@ export default function PptoPage() {
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [nuevoCcInput, setNuevoCcInput] = useState('')
   const [nuevoCcError, setNuevoCcError] = useState('')
+  const [showBaseModal, setShowBaseModal] = useState(false)
   const [searchLanding, setSearchLanding] = useState('')
   const [filtroProductor, setFiltroProductor] = useState('Todos')
 
@@ -178,7 +179,10 @@ export default function PptoPage() {
   }, [vista, grupoSel, active])
 
   /* ---------- crear nuevo presupuesto (V1 de un centro de costo) ---------- */
-  async function crearNuevo() {
+  // Si el CC ya existe, va directo a sus versiones. Si es nuevo, se pregunta si
+  // arrancar en blanco o tomar los ítems de otro presupuesto como base (p.ej.
+  // proyectos que se repiten mes a mes) — ver NuevoBaseModal más abajo.
+  function crearNuevo() {
     const cc = nuevoCcInput.trim()
     if (!cc) { setNuevoCcError('Ingresa un centro de costo.'); return }
     const existente = grupoDe(cc)
@@ -187,6 +191,12 @@ export default function PptoPage() {
       abrirVersiones(cc)
       return
     }
+    setNuevoCcError('')
+    setShowBaseModal(true)
+  }
+
+  async function confirmarCrearNuevo(rowsBase?: PptoRow[]) {
+    const cc = nuevoCcInput.trim()
     const match = proyectos.find(p => (p.centroCosto || '').trim() === cc)
     const nb = emptyBudget({
       centroCosto: cc,
@@ -194,11 +204,21 @@ export default function PptoPage() {
       evento: match?.nombre ?? '',
       director: match?.ejecutivo ?? '',
       version: 1,
+      rows: rowsBase ?? [],
     })
     setBudgets(prev => [...prev, nb])
     await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
-    setNuevoCcInput(''); setNuevoCcError('')
+    setNuevoCcInput('')
+    setShowBaseModal(false)
     abrirEditor(nb.id)
+  }
+
+  // Clona los ítems de un presupuesto existente para usarlos como base de uno
+  // nuevo: ids frescos (para no chocar con el original) y "ordenado" en 0,
+  // porque ese valor es gasto real ya ejecutado del proyecto viejo, no aplica
+  // como plantilla del nuevo.
+  function clonarFilasComoBase(rows: PptoRow[]): PptoRow[] {
+    return rows.map(r => ({ ...mkRow(r.proceso, r.item, r.costoUnd, r.cant, r.dias, r.costoRealUnd, 0, r.proveedor), adicional: r.adicional }))
   }
 
   /* ---------- nueva versión en blanco desde la lista de versiones ---------- */
@@ -344,6 +364,16 @@ export default function PptoPage() {
               </>
             )}
           </>
+        )}
+
+        {showBaseModal && (
+          <NuevoBaseModal
+            cc={nuevoCcInput.trim()}
+            grupos={grupos}
+            onBlank={() => confirmarCrearNuevo()}
+            onFromBase={rows => confirmarCrearNuevo(clonarFilasComoBase(rows))}
+            onClose={() => setShowBaseModal(false)}
+          />
         )}
       </div>
     )
@@ -534,6 +564,95 @@ export default function PptoPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ---------- modal: elegir cómo arrancar un presupuesto nuevo ---------- */
+function NuevoBaseModal({ cc, grupos, onBlank, onFromBase, onClose }: {
+  cc: string
+  grupos: { centroCosto: string; latest: PptoBudget }[]
+  onBlank: () => void
+  onFromBase: (rows: PptoRow[]) => void
+  onClose: () => void
+}) {
+  const [paso, setPaso] = useState<'elegir' | 'buscar'>('elegir')
+  const [q, setQ] = useState('')
+  const [elegido, setElegido] = useState<PptoBudget | null>(null)
+
+  const resultados = useMemo(() => {
+    const term = q.trim().toLowerCase()
+    if (!term) return []
+    return grupos
+      .filter(g => g.centroCosto.toLowerCase().includes(term) || (g.latest.evento || '').toLowerCase().includes(term))
+      .slice(0, 6)
+  }, [q, grupos])
+
+  function volverAElegir() { setPaso('elegir'); setQ(''); setElegido(null) }
+
+  return (
+    <div className="modalbg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 460 }}>
+        {paso === 'elegir' && (
+          <>
+            <div className="modaltitle">Presupuesto para CC {cc}</div>
+            <p className="modaltxt">¿Cómo quieres empezar este presupuesto?</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+              <button className="tb" style={{ textAlign: 'left', padding: '12px 14px', width: '100%', display: 'block' }} onClick={onBlank}>
+                <div style={{ fontWeight: 700, color: '#191c19' }}>Empezar en blanco</div>
+                <div style={{ fontSize: 12, color: '#6d746c', marginTop: 2 }}>Arranca sin ítems, como una plantilla vacía.</div>
+              </button>
+              <button className="tb" style={{ textAlign: 'left', padding: '12px 14px', width: '100%', display: 'block' }} onClick={() => setPaso('buscar')}>
+                <div style={{ fontWeight: 700, color: '#191c19' }}>Usar un presupuesto existente como base</div>
+                <div style={{ fontSize: 12, color: '#6d746c', marginTop: 2 }}>Copia los ítems de otro centro de costo. Cliente, evento y demás datos del encabezado no se copian.</div>
+              </button>
+            </div>
+            <button className="modalcancel" onClick={onClose}>Cancelar</button>
+          </>
+        )}
+
+        {paso === 'buscar' && !elegido && (
+          <>
+            <div className="modaltitle">Buscar presupuesto base</div>
+            <input className="in" autoFocus placeholder="Centro de costo o proyecto..." value={q}
+              onChange={e => setQ(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10 }} />
+            {q.trim() && resultados.length === 0 && (
+              <p className="modaltxt">No hay presupuestos que coincidan con &quot;{q}&quot;.</p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
+              {resultados.map(g => (
+                <button key={g.centroCosto} className="vcard" onClick={() => setElegido(g.latest)}>
+                  <div className="vnum">{g.centroCosto}</div>
+                  <div className="vinfo">
+                    <div className="vevento">{g.latest.evento || 'Sin nombre'}</div>
+                    <div className="vfecha">{g.latest.cliente || '—'} · V{g.latest.version} · {g.latest.rows.length} ítem{g.latest.rows.length === 1 ? '' : 's'}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button className="modalcancel" onClick={volverAElegir}>‹ Volver</button>
+          </>
+        )}
+
+        {paso === 'buscar' && elegido && (
+          <>
+            <div className="modaltitle">Usar como base</div>
+            <div className="vcard" style={{ cursor: 'default' }}>
+              <div className="vnum">{elegido.centroCosto}</div>
+              <div className="vinfo">
+                <div className="vevento">{elegido.evento || 'Sin nombre'}{elegido.cliente ? ` · ${elegido.cliente}` : ''}</div>
+                <div className="vfecha">V{elegido.version} · {elegido.rows.length} ítem{elegido.rows.length === 1 ? '' : 's'}</div>
+              </div>
+            </div>
+            <p className="modaltxt">Se copiarán los {elegido.rows.length} ítems de esta versión al nuevo presupuesto de CC {cc}.</p>
+            <div className="modalbtns">
+              <button className="tb" onClick={() => setElegido(null)}>‹ Elegir otro</button>
+              <button className="tb primary" onClick={() => onFromBase(elegido.rows)}>Usar esta base</button>
+            </div>
+            <button className="modalcancel" onClick={onClose}>Cancelar</button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
