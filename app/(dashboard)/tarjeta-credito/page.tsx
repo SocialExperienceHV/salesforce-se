@@ -283,15 +283,19 @@ function DetallePanel({ doc, tarjetaNombre, responsablesOpts, ccValidos, fullWid
 }
 
 // ─── Modal nuevo documento ────────────────────────────────────────────────────
-function NuevoDocModal({ tarjetasActivas, onConfirm, onConfirmExcel, onClose }: {
+function NuevoDocModal({ tarjetasActivas, responsablesOpts, onConfirm, onConfirmExcel, onClose }: {
   tarjetasActivas: { id:string; ultimos4:string; nombre?:string }[]
-  onConfirm: (tarjetaId:string, ultimos4:string, fecha:string) => void
+  responsablesOpts: string[]
+  onConfirm: (tarjetaId:string, ultimos4:string, fecha:string, item:ItemTC) => void
   onConfirmExcel: (tarjetaId:string, ultimos4:string, fecha:string, items:ItemTC[]) => void
   onClose: () => void
 }) {
   const [tarjetaId, setTarjetaId] = useState(tarjetasActivas[0]?.id??'')
   const [fecha, setFecha] = useState(today())
   const [modo, setModo] = useState<'manual'|'excel'>('manual')
+  const [itemNombre, setItemNombre] = useState('')
+  const [responsable, setResponsable] = useState('')
+  const [valor, setValor] = useState(0)
   const [excelError, setExcelError] = useState('')
   const [excelRows, setExcelRows] = useState<ItemTC[]>([])
   const [excelFileName, setExcelFileName] = useState('')
@@ -350,7 +354,7 @@ function NuevoDocModal({ tarjetasActivas, onConfirm, onConfirmExcel, onClose }: 
     if(modo==='excel' && excelRows.length>0) {
       onConfirmExcel(tarjetaId, t.ultimos4, fecha, excelRows)
     } else {
-      onConfirm(tarjetaId, t.ultimos4, fecha)
+      onConfirm(tarjetaId, t.ultimos4, fecha, { ...blankItem(), item:itemNombre.trim(), responsable, monto:valor })
     }
   }
 
@@ -406,10 +410,32 @@ function NuevoDocModal({ tarjetasActivas, onConfirm, onConfirmExcel, onClose }: 
               </div>
             </>
           ) : (
-            <div>
-              <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Fecha</label>
-              <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={inp} />
-            </div>
+            <>
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Fecha</label>
+                <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={inp} />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Item</label>
+                <input value={itemNombre} onChange={e=>setItemNombre(e.target.value)} placeholder="Nombre del gasto" style={inp} />
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <div style={{ flex:1.4 }}>
+                  <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Responsable</label>
+                  <select value={responsable} onChange={e=>setResponsable(e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="">— Persona —</option>
+                    {responsablesOpts.map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex:1 }}>
+                  <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Valor</label>
+                  <input type="text" inputMode="numeric"
+                    value={valor?valor.toLocaleString('es-CO'):''}
+                    onChange={e=>{const raw=e.target.value.replace(/\./g,'').replace(/[^\d]/g,'');setValor(raw?Number(raw):0)}}
+                    placeholder="0" style={{ ...inp, textAlign:'right' }} />
+                </div>
+              </div>
+            </>
           )}
         </div>
 
@@ -498,8 +524,8 @@ export default function TarjetaCredito() {
   function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') { patchItem(docId, itemId, {status}) }
   function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') { patchItem(docId, itemId, {gespro}) }
 
-  function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string) {
-    addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[blankItem()], finalizado:false })
+  function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string, item:ItemTC) {
+    addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[item], finalizado:false })
     setShowModal(false)
   }
   function handleNuevoExcel(tarjetaId:string, ultimos4:string, fecha:string, items:ItemTC[]) {
@@ -762,7 +788,7 @@ export default function TarjetaCredito() {
       </div>
 
       {showModal&&(
-        <NuevoDocModal tarjetasActivas={tarjetasActivas} onConfirm={handleNuevo} onConfirmExcel={handleNuevoExcel} onClose={()=>setShowModal(false)}/>
+        <NuevoDocModal tarjetasActivas={tarjetasActivas} responsablesOpts={responsablesOpts} onConfirm={handleNuevo} onConfirmExcel={handleNuevoExcel} onClose={()=>setShowModal(false)}/>
       )}
     </div>
   )
