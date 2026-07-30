@@ -267,9 +267,20 @@ export default function PlanTrabajoPage() {
   const [nuevaPersona, setNuevaPersona] = useState('')
   const [nuevaDia, setNuevaDia] = useState<DiaPlan>('Lunes')
   const [nuevaOk, setNuevaOk] = useState(false)
+  // Solo proyectos de este año, ordenados por centro de costo de mayor a menor
+  // (mismo criterio que Calendar).
   const proyectosEsteAnio = useMemo(() => {
     const anioActual = new Date().getFullYear()
-    return proyectos.filter(p => anioDeProyecto(p) === anioActual)
+    return proyectos
+      .filter(p => anioDeProyecto(p) === anioActual)
+      .sort((a, b) => {
+        const ccA = parseInt((a.centroCosto ?? '').trim(), 10)
+        const ccB = parseInt((b.centroCosto ?? '').trim(), 10)
+        if (isNaN(ccA) && isNaN(ccB)) return 0
+        if (isNaN(ccA)) return 1
+        if (isNaN(ccB)) return -1
+        return ccB - ccA
+      })
   }, [proyectos])
 
   // ── Derivar asignaciones desde proyectos ─────────────────────────────────────
@@ -602,7 +613,9 @@ export default function PlanTrabajoPage() {
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Proyecto</span>
                   <select value={nuevaProyecto} onChange={e => setNuevaProyecto(e.target.value)} style={{ ...sel, minWidth: 200 }}>
                     <option value="">Seleccionar proyecto...</option>
-                    {proyectosEsteAnio.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    {proyectosEsteAnio.map(p => (
+                      <option key={p.id} value={p.id}>{p.centroCosto?.trim() ? `${p.centroCosto.trim()} - ${p.nombre}` : p.nombre}</option>
+                    ))}
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

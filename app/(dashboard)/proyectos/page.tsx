@@ -340,12 +340,14 @@ export default function ProyectosPage() {
   const [anio, setAnio] = useState(String(new Date().getFullYear()))
   const [detalle, setDetalle] = useState<Proyecto | null>(null)
   const [editando, setEditando] = useState<Proyecto | null>(null)
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // Por defecto, ordenado por centro de costo de mayor a menor (mismo criterio
+  // que Seguimiento: los más grandes son los más recién creados).
+  const [sortCol, setSortCol] = useState<string | null>('centroCosto')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('asc') }
+    else { setSortCol(col); setSortDir('desc') }
   }
 
   const clientesFiltro = ['Todos', ...clientes.map(c => c.nombre)]
@@ -370,6 +372,7 @@ export default function ProyectosPage() {
       let va: string | number = ''
       let vb: string | number = ''
       if (sortCol === 'nombre')           { va = a.nombre;            vb = b.nombre }
+      else if (sortCol === 'centroCosto') { va = parseInt(a.centroCosto ?? '', 10) || -1; vb = parseInt(b.centroCosto ?? '', 10) || -1 }
       else if (sortCol === 'cliente')     { va = a.cliente;           vb = b.cliente }
       else if (sortCol === 'tipo')        { va = a.tipo;              vb = b.tipo }
       else if (sortCol === 'ejecutivo')   { va = a.ejecutivo;         vb = b.ejecutivo }
