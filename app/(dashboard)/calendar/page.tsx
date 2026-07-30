@@ -105,10 +105,11 @@ const selectStyle = {
 }
 
 // ─── Panel (Nuevo registro) ────────────────────────────────────────────────────
-function Panel({ onClose, onSave, proyectosNombres, registros, currentUser }: {
+function Panel({ onClose, onSave, proyectosNombres, labelPorProyecto, registros, currentUser }: {
   onClose: () => void
   onSave: (r: Omit<RegistroTiempo, 'id' | 'createdAt'>) => void
   proyectosNombres: string[]
+  labelPorProyecto: Map<string, string>
   registros: RegistroTiempo[]
   currentUser: import('@/lib/store').PersonaStore
 }) {
@@ -209,7 +210,7 @@ function Panel({ onClose, onSave, proyectosNombres, registros, currentUser }: {
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Proyecto</div>
           <select value={proyecto} onChange={e => setProyecto(e.target.value)} style={selectStyle}>
-            {proyectosNombres.map(p => <option key={p} value={p}>{p}</option>)}
+            {proyectosNombres.map(p => <option key={p} value={p}>{labelPorProyecto.get(p) ?? p}</option>)}
           </select>
         </div>
 
@@ -241,10 +242,11 @@ function Panel({ onClose, onSave, proyectosNombres, registros, currentUser }: {
 }
 
 // ─── Edit panel ────────────────────────────────────────────────────────────────
-function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onDelete, currentUser }: {
+function EditPanel({ registro, registros, proyectosNombres, labelPorProyecto, onClose, onSave, onDelete, currentUser }: {
   registro: RegistroTiempo
   registros: RegistroTiempo[]
   proyectosNombres: string[]
+  labelPorProyecto: Map<string, string>
   onClose: () => void
   onSave: (id: string, changes: Partial<RegistroTiempo>) => void
   onDelete: (id: string) => void
@@ -346,7 +348,7 @@ function EditPanel({ registro, registros, proyectosNombres, onClose, onSave, onD
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Proyecto</div>
             <select value={proyecto} onChange={e => setProyecto(e.target.value)} style={selectStyle}>
-              {opcionesProyecto.map(p => <option key={p} value={p}>{p}</option>)}
+              {opcionesProyecto.map(p => <option key={p} value={p}>{labelPorProyecto.get(p) ?? p}</option>)}
             </select>
           </div>
 
@@ -563,7 +565,7 @@ export default function CalendarPage() {
   // Solo proyectos de este año, ordenados por centro de costo de mayor a menor
   // (los más grandes son los más recién creados, así que es más probable que
   // sean los que se estén usando para registrar tiempo).
-  const storeProyectos = useMemo(() => {
+  const storeProyectosOrdenados = useMemo(() => {
     const anioActual = new Date().getFullYear()
     return proyectos
       .filter(p => anioDeProyecto(p) === anioActual)
@@ -575,8 +577,17 @@ export default function CalendarPage() {
         if (isNaN(ccB)) return -1
         return ccB - ccA
       })
-      .map(p => p.nombre)
   }, [proyectos])
+  const storeProyectos = useMemo(() => storeProyectosOrdenados.map(p => p.nombre), [storeProyectosOrdenados])
+  // Etiqueta "Centro de costo - Nombre" para los selects de proyecto. El value
+  // sigue siendo solo el nombre (así se guarda en RegistroTiempo.proyecto).
+  const labelPorProyecto = useMemo(() => {
+    const map = new Map<string, string>()
+    storeProyectosOrdenados.forEach(p => {
+      if (!map.has(p.nombre)) map.set(p.nombre, p.centroCosto?.trim() ? `${p.centroCosto.trim()} - ${p.nombre}` : p.nombre)
+    })
+    return map
+  }, [storeProyectosOrdenados])
 
   function navigate(dir: 1 | -1) {
     if (view === 'Semana') setCursor(addDays(cursor, dir * 7))
@@ -727,6 +738,7 @@ export default function CalendarPage() {
           onClose={() => setShowPanel(false)}
           onSave={r => addRegistro({ ...r, proyectoId: proyectos.find(p => p.nombre === r.proyecto)?.id ?? '' })}
           proyectosNombres={storeProyectos}
+          labelPorProyecto={labelPorProyecto}
           registros={registros}
           currentUser={CURRENT_USER}
         />
@@ -737,6 +749,7 @@ export default function CalendarPage() {
           registro={editing}
           registros={registros}
           proyectosNombres={storeProyectos}
+          labelPorProyecto={labelPorProyecto}
           onClose={() => setEditing(null)}
           onSave={updateRegistro}
           onDelete={deleteRegistro}
