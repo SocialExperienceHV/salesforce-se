@@ -454,7 +454,11 @@ function NuevoDocModal({ tarjetasActivas, responsablesOpts, onConfirm, onConfirm
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function TarjetaCredito() {
-  const { tarjetasCorp, documentosTC, addDocumentoTC, updateDocumentoTC, deleteDocumentoTC, personasStore, proyectos } = useStore()
+  const { tarjetasCorp, documentosTC, addDocumentoTC, updateDocumentoTC, deleteDocumentoTC, personasStore, proyectos, currentUser } = useStore()
+  // El estado (Pendiente/Entregado) lo pueden ver todos los que entran a este
+  // módulo, pero solo marcarlo Administración y Contabilidad — son quienes
+  // reciben físicamente el soporte de cada gasto.
+  const puedeEditarEstado = currentUser?.permiso === 'Administración' || currentUser?.permiso === 'Contabilidad' || currentUser?.permiso === 'Super Admin'
 
   const tarjetasActivas = useMemo(()=>tarjetasCorp.filter(t=>t.activa),[tarjetasCorp])
   const [editingItemId, setEditingItemId] = useState<string|null>(null)
@@ -712,20 +716,26 @@ export default function TarjetaCredito() {
                             : <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', border:'1.5px solid #D1D5DB' }}>No Cargado</span>}
                         </td>
                         <td style={tdT} onClick={e=>e.stopPropagation()}>
-                          <div style={{ display:'flex', gap:4 }}>
-                            {(['Pendiente','Entregado'] as const).map(s=>{
-                              const active = item.status===s
-                              return (
-                                <button key={s} onClick={()=>updateItemStatus(doc.id,item.id,s)}
-                                  style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
-                                    border: active?`1.5px solid ${s==='Entregado'?'#10B981':'#F59E0B'}`:'1.5px solid #E5E7EB',
-                                    background: active?(s==='Entregado'?'#D1FAE5':'#FEF3C7'):'#fff',
-                                    color: active?(s==='Entregado'?'#065F46':'#92400E'):'#D1D5DB' }}>
-                                  {s==='Entregado'?'✓ Entregado':'Pendiente'}
-                                </button>
-                              )
-                            })}
-                          </div>
+                          {puedeEditarEstado ? (
+                            <div style={{ display:'flex', gap:4 }}>
+                              {(['Pendiente','Entregado'] as const).map(s=>{
+                                const active = item.status===s
+                                return (
+                                  <button key={s} onClick={()=>updateItemStatus(doc.id,item.id,s)}
+                                    style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer',
+                                      border: active?`1.5px solid ${s==='Entregado'?'#10B981':'#F59E0B'}`:'1.5px solid #E5E7EB',
+                                      background: active?(s==='Entregado'?'#D1FAE5':'#FEF3C7'):'#fff',
+                                      color: active?(s==='Entregado'?'#065F46':'#92400E'):'#D1D5DB' }}>
+                                    {s==='Entregado'?'✓ Entregado':'Pendiente'}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            item.status==='Entregado'
+                              ? <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', border:'1.5px solid #10B981' }}>✓ Entregado</span>
+                              : <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background:'#FEF3C7', color:'#92400E', border:'1.5px solid #F59E0B' }}>Pendiente</span>
+                          )}
                         </td>
                         <td style={tdT}>
                           <button onClick={()=>setEditingItemId(isEditing?null:item.id)}
