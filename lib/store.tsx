@@ -283,9 +283,15 @@ async function sbGet<T>(table: string): Promise<T[]> {
   return all.map(r => r.data)
 }
 
-async function sbGetOverrides(): Promise<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>> {
+// "semana" = lunes (YYYY-MM-DD) de la semana en la que una labor se marcó
+// Finalizado, para que quede anclada a esa semana en vez de "flotar" y
+// reaparecer cada vez que pasa el tiempo. Las labores "En proceso" no la usan
+// (siempre viven en la semana actual, se reprograman solas día a día).
+export type PlanOverride = { dias: string[]; estado: 'En proceso' | 'Finalizado'; semana?: string }
+
+async function sbGetOverrides(): Promise<Record<string, PlanOverride>> {
   const PAGE = 1000
-  type Row = { key: string; data: { dias: string[]; estado: 'En proceso' | 'Finalizado' } }
+  type Row = { key: string; data: PlanOverride }
   const all: Row[] = []
   let from = 0
   for (;;) {
@@ -295,7 +301,7 @@ async function sbGetOverrides(): Promise<Record<string, { dias: string[]; estado
     if (data.length < PAGE) break
     from += PAGE
   }
-  const result: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }> = {}
+  const result: Record<string, PlanOverride> = {}
   all.forEach(r => { result[r.key] = r.data })
   return result
 }
@@ -348,8 +354,8 @@ type StoreCtx = {
   setCurrentUser: (p: PersonaStore | null) => void
   ready: boolean
 
-  planOverrides: Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>
-  updatePlanOverride: (key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) => void
+  planOverrides: Record<string, PlanOverride>
+  updatePlanOverride: (key: string, changes: Partial<PlanOverride>) => void
 
   legalizaciones: Legalizacion[]
   addLegalizacion: (l: Omit<Legalizacion, 'id' | 'createdAt' | 'codigo'>) => string
@@ -387,7 +393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [clientes, setClientes]           = useState<Cliente[]>([])
   const [prospectos, setProspectos]       = useState<Prospecto[]>([])
   const [personasStore, setPersonasStore] = useState<PersonaStore[]>([])
-  const [planOverrides, setPlanOverrides] = useState<Record<string, { dias: string[]; estado: 'En proceso' | 'Finalizado' }>>({})
+  const [planOverrides, setPlanOverrides] = useState<Record<string, PlanOverride>>({})
   const [legalizaciones, setLegalizaciones] = useState<Legalizacion[]>([])
   const [tarjetasCorp, setTarjetasCorp]   = useState<TarjetaCorporativa[]>([])
   const [documentosTC, setDocumentosTC]   = useState<DocumentoTC[]>([])
@@ -594,7 +600,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (currentUser?.id === id) setCurrentUserState(prev => prev ? { ...prev, ...changes } : prev)
   }
 
-  function updatePlanOverride(key: string, changes: { dias?: string[]; estado?: 'En proceso' | 'Finalizado' }) {
+  function updatePlanOverride(key: string, changes: Partial<PlanOverride>) {
     const current = planOverrides[key] ?? { dias: [], estado: 'En proceso' as const }
     const updated = { ...current, ...changes }
     setPlanOverrides(prev => ({ ...prev, [key]: updated }))

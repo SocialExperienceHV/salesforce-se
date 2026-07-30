@@ -29,6 +29,18 @@ function nextDia(dia: Dia): Dia {
   const idx = DIA_ORDER[dia]
   return DIAS[Math.min(idx + 1, 4)]
 }
+// Lunes (YYYY-MM-DD) de la semana de una fecha dada
+function mondayISO(d: Date): string {
+  const m = new Date(d)
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7))
+  return m.toISOString().slice(0, 10)
+}
+// Lunes de la semana que se está viendo, según el offset de navegación
+function mondayForOffset(offset: number): string {
+  const hoy = new Date()
+  hoy.setDate(hoy.getDate() + offset * 7)
+  return mondayISO(hoy)
+}
 function initiales(nombre: string) {
   return nombre.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
 }
@@ -52,6 +64,9 @@ type Asig = {
   tipo: 'produccion' | 'creatividad'
   dias: DiaPlan[]
   estado: 'En proceso' | 'Finalizado'
+  // Lunes (YYYY-MM-DD) de la semana en la que se marcó Finalizado — ancla la
+  // tarjeta a esa semana para que no "flote" hacia la semana actual con el tiempo.
+  semana?: string
 }
 
 function DetallePanel({ asig, onClose, onSave, onFinalizar, onReprogramar }: {
@@ -275,7 +290,7 @@ export default function PlanTrabajoPage() {
           key, persona: nombre,
           area: pd?.area ?? (tipo === 'produccion' ? 'Producción' : 'Creatividad'),
           proyectoId: p.id, proyectoNombre: p.nombre, clienteNombre: p.cliente,
-          tipo, dias, estado,
+          tipo, dias, estado, semana: override?.semana,
         })
       }
 
@@ -331,18 +346,31 @@ export default function PlanTrabajoPage() {
   }, [todasPersonas, filtroAreas, filtroPersona, asignaciones])
 
   // ── Asignaciones filtradas ───────────────────────────────────────────────────
+  // offset 1 → bucket "Siguiente semana" (planeación, nunca hay finalizadas).
+  // offset 0 → semana actual: días normales; "En proceso" siempre vive aquí, y
+  //   las Finalizadas solo si quedaron ancladas a esta semana (o no tienen
+  //   semana guardada todavía, dato antiguo de antes de este fix).
+  // offset < 0 → semana pasada: solo Finalizadas ancladas a esa semana exacta;
+  //   "En proceso" no tiene historial por semana, así que no aparece atrás.
   const asigsFiltradas = useMemo(() => {
+    const targetMonday = mondayForOffset(semanaOffset)
     return asignaciones.filter(a => {
       if (!personasFiltradas.includes(a.persona)) return false
-      // Filtro por semana: offset 0 → días normales, offset 1 → "Siguiente semana"
-      if (semanaOffset === 0) {
+
+      if (semanaOffset === 1) {
+        if (!a.dias.includes('Siguiente semana')) return false
+        if (a.estado === 'Finalizado') return false
+      } else if (semanaOffset <= 0) {
         const tieneDiaNormal = a.dias.some(d => (DIAS as readonly string[]).includes(d))
         if (!tieneDiaNormal) return false
-      } else if (semanaOffset === 1) {
-        if (!a.dias.includes('Siguiente semana')) return false
-        if (a.estado === 'Finalizado') return false  // no hay finalizadas en semana siguiente
+        if (a.estado === 'Finalizado') {
+          const semanaAsig = a.semana ?? mondayForOffset(0)
+          if (semanaAsig !== targetMonday) return false
+        } else if (semanaOffset < 0) {
+          return false
+        }
       } else {
-        return false  // semanas pasadas o futuras lejanas sin datos
+        return false  // semanas futuras lejanas sin datos
       }
       if (filtroEstado === 'Finalizado' && a.estado !== 'Finalizado') return false
       if (filtroEstado === 'En proceso' && a.estado !== 'En proceso') return false
@@ -352,10 +380,19 @@ export default function PlanTrabajoPage() {
 
   // ── Asignaciones de la semana en vista, sin ocultar Finalizadas (para las stats) ──
   const asigsSemana = useMemo(() => {
+    const targetMonday = mondayForOffset(semanaOffset)
     return asignaciones.filter(a => {
       if (!personasFiltradas.includes(a.persona)) return false
-      if (semanaOffset === 0) return a.dias.some(d => (DIAS as readonly string[]).includes(d))
       if (semanaOffset === 1) return a.dias.includes('Siguiente semana')
+      if (semanaOffset <= 0) {
+        const tieneDiaNormal = a.dias.some(d => (DIAS as readonly string[]).includes(d))
+        if (!tieneDiaNormal) return false
+        if (a.estado === 'Finalizado') {
+          const semanaAsig = a.semana ?? mondayForOffset(0)
+          return semanaAsig === targetMonday
+        }
+        return semanaOffset === 0 // "En proceso" solo cuenta en la semana actual
+      }
       return false
     })
   }, [asignaciones, personasFiltradas, semanaOffset])
@@ -380,8 +417,9 @@ export default function PlanTrabajoPage() {
   }
   function handleFinalizar() {
     if (!selected || !asigSel) return
-    // Preservar los días actuales para que la tarea siga visible en la matriz
-    updatePlanOverride(selected, { dias: asigSel.dias, estado: 'Finalizado' })
+    // Preservar los días actuales para que la tarea siga visible en la matriz, y
+    // anclarla a la semana que se está viendo para que no reaparezca en semanas futuras.
+    updatePlanOverride(selected, { dias: asigSel.dias, estado: 'Finalizado', semana: mondayForOffset(semanaOffset) })
     setSelected(null)
   }
   function handleReprogramar() {
