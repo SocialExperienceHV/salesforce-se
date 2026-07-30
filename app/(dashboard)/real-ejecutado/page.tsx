@@ -436,9 +436,6 @@ export default function RealEjecutadoPage() {
           <div className="kv"><span>Costo proyectado (PPTO)</span><span className="num">{money(t.costoProy)}</span></div>
           <div className="kv"><span>Costo real total (todo incluido)</span><span className="num">{money(costoRealCompleto)}</span></div>
           <div className="kv total"><span>Diferencia (proy. − real)</span><span className="num" style={{ color: (t.costoProy - costoRealCompleto) >= 0 ? '#0e7a52' : '#b3261e' }}>{money(t.costoProy - costoRealCompleto)}</span></div>
-          <div className="bigpct num" style={{ color: t.costoProy > 0 ? (costoRealCompleto <= t.costoProy ? '#0e7a52' : '#b3261e') : '#8a8f88' }}>
-            {t.costoProy > 0 ? ((costoRealCompleto / t.costoProy) * 100).toFixed(1).replace('.', ',') + ' % ejecutado' : '—'}
-          </div>
         </div>
         <div className="rescard">
           <h3>Real ejecutado</h3>
