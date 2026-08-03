@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer'
 const DESTINATARIOS = [
   'hans@socialexperience.com.co',
   'felipe@socialexperience.com.co',
-  'ivan.londono@socialexperience.com.co',
+  'francisco.cardenas@socialexperience.com.co',
 ]
 
 const LOGO_URL = 'https://vbbmboppwmosxnrotymt.supabase.co/storage/v1/object/public/gespro-archivos/brand/logo-social.png'
@@ -52,12 +52,12 @@ export async function POST(req: NextRequest) {
         <!-- Título -->
         <tr>
           <td style="padding:24px 32px 8px;font-size:18px;font-weight:700;color:#111827">
-            Nuevo centro de costo #${centroCosto}
+            ¡Proyecto vendido! — Centro de costo #${centroCosto}
           </td>
         </tr>
         <tr>
           <td style="padding:0 32px 20px;font-size:13px;color:#6B7280">
-            Creado el ${new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}${creadoPor ? ` por ${creadoPor}` : ''}
+            Marcado como Vendido el ${new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}${creadoPor ? ` por ${creadoPor}` : ''}
           </td>
         </tr>
         <!-- Tabla de datos -->
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
               ${fila('Centro de costo', centroCosto)}
               ${fila('Nombre del proyecto', nombre)}
               ${fila('Cliente', cliente)}
-              ${monto ? fila('Venta estimada', formatCOP(Number(monto))) : ''}
+              ${monto ? fila('Venta real', formatCOP(Number(monto))) : ''}
               ${fechaInicio ? fila('Fecha de inicio', new Date(fechaInicio).toLocaleDateString('es-CO')) : ''}
               ${fechaEntrega ? fila('Fecha de entrega', new Date(fechaEntrega).toLocaleDateString('es-CO')) : ''}
             </table>
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     await transporter.sendMail({
       from: `"Social Experience" <${process.env.GMAIL_USER}>`,
       to: DESTINATARIOS.join(', '),
-      subject: `Nuevo centro de costo #${centroCosto}`,
+      subject: `¡Proyecto vendido! Centro de costo #${centroCosto} — ${nombre}`,
       html,
     })
 
