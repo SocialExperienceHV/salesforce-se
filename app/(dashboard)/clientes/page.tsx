@@ -527,7 +527,7 @@ export default function ClientesPage() {
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<Cliente | null>(null)
   const [contactosCliente, setContactosCliente] = useState<Cliente | null>(null)
-  const [sortAZ, setSortAZ] = useState(false)
+  const [sortAZ, setSortAZ] = useState(true)
 
   const filtered = clientes
     .filter(c => {
