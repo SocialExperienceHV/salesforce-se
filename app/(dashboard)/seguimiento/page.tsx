@@ -456,7 +456,7 @@ export default function SeguimientoPage() {
       {/* Table */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1250 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1290 }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 {([
@@ -556,7 +556,7 @@ export default function SeguimientoPage() {
                     {/* Monto estimado */}
                     <td style={{ ...td, fontWeight: 600 }}>{fmt(p.monto)}</td>
                     {/* Venta Real — editable solo si Vendido */}
-                    <td style={td}>
+                    <td style={{ ...td, minWidth: 150, whiteSpace: 'nowrap' }}>
                       <EditableNumber
                         value={p.montoRealVendido}
                         enabled={isVendido}
