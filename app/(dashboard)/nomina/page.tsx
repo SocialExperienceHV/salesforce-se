@@ -20,7 +20,8 @@ function horasDiff(ini: string, fin: string) {
 }
 
 export default function NominaPage() {
-  const { registros, personasStore } = useStore()
+  const { registros, personasStore, proyectos } = useStore()
+  const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
 
   const today = new Date()
   const [mes, setMes] = useState(today.getMonth())
@@ -87,27 +88,30 @@ export default function NominaPage() {
   // ── Descarga CSV ─────────────────────────────────────────────────────────────
   function descargarCSV() {
     const rows: string[] = [
-      'Persona;Área;Cargo;Proyecto;Horas;Costo hora (dinámico);Costo imputado al proyecto'
+      'Persona;Área;Cargo;Proyecto;Centro de costo;¿Vendido?;Horas;Costo hora (dinámico);Costo imputado al proyecto'
     ]
 
     personasStore.forEach(p => {
       const horasTotales = horasPorPersona[p.nombre] ?? 0
       const costoHora = horasTotales > 0 ? p.costoMensual / horasTotales : 0
-      const proyectos = desglose[p.nombre] ?? {}
+      const proyectosPersona = desglose[p.nombre] ?? {}
 
-      if (Object.keys(proyectos).length === 0) {
-        rows.push(`${p.nombre};${p.area};${p.cargo};Sin registros;0;${Math.round(costoHora)};0`)
+      if (Object.keys(proyectosPersona).length === 0) {
+        rows.push(`${p.nombre};${p.area};${p.cargo};Sin registros;;;0;${Math.round(costoHora)};0`)
       } else {
-        Object.entries(proyectos).forEach(([proyecto, { horas }]) => {
+        Object.entries(proyectosPersona).forEach(([proyecto, { horas, proyectoId }]) => {
           const costoProyecto = costoHora * horas
-          rows.push(`${p.nombre};${p.area};${p.cargo};${proyecto};${horas.toFixed(2)};${Math.round(costoHora)};${Math.round(costoProyecto)}`)
+          const proy = proyectoPorId.get(proyectoId)
+          const centroCosto = proy?.centroCosto || 'Sin CC'
+          const vendido = proy?.estadoComercial === 'Vendido' ? 'Sí' : 'No'
+          rows.push(`${p.nombre};${p.area};${p.cargo};${proyecto};${centroCosto};${vendido};${horas.toFixed(2)};${Math.round(costoHora)};${Math.round(costoProyecto)}`)
         })
       }
     })
 
     // Totales
     rows.push('')
-    rows.push(`TOTAL NÓMINA MES;;;; ;; ${Math.round(totalNomina)}`)
+    rows.push(['TOTAL NÓMINA MES', '', '', '', '', '', '', '', `${Math.round(totalNomina)}`].join(';'))
 
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
