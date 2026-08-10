@@ -726,7 +726,12 @@ export default function CalendarPage() {
             <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', whiteSpace: 'nowrap' }}>Empleado:</span>
             <select value={filtroPersona} onChange={e => setFiltroPersona(e.target.value)}
               style={{ height: 32, padding: '0 8px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 12, color: '#374151', background: '#fff', outline: 'none', cursor: 'pointer' }}>
-              {empleados.map(e => <option key={e}>{e}</option>)}
+              {/* value explícito: sin él, el <option> deriva su valor de su texto y el
+                  navegador recorta espacios finales — algunos nombres en personas
+                  quedaron guardados con un espacio al final (ej. "Katherinne Pineda "),
+                  así que el valor recortado del <option> no calzaba con r.persona al
+                  filtrar y el filtro por esa persona puntual no mostraba nada. */}
+              {empleados.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
           </div>
           <button onClick={() => setShowPanel(true)}
