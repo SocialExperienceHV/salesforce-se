@@ -90,6 +90,7 @@ export const PERMISOS: Record<Rol, string[]> = {
     '/legalizaciones',
     '/tarjeta-credito',
     '/reportes',
+    '/nomina',
   ],
 }
 
