@@ -551,7 +551,15 @@ export default function CalendarPage() {
   const [editing, setEditing]     = useState<RegistroTiempo | null>(null)
   const { proyectos, registros, addRegistro, updateRegistro, deleteRegistro, currentUser, personasStore } = useStore()
   const CURRENT_USER = currentUser!
-  const [filtroPersona, setFiltroPersona] = useState(CURRENT_USER.nombre)
+  // Antes arrancaba en CURRENT_USER.nombre: si quien mira el calendario no
+  // registra tiempo propio (ej. un KAM/admin), ese nombre no existe en
+  // `empleados` (que solo lista personas con registros reales) y el <select>
+  // nativo cae de forma silenciosa en la primera opción ("Todos") — se ve
+  // seleccionado "Todos" pero el filtro real seguía siendo el nombre sin
+  // registros, mostrando un calendario vacío aunque otras personas (ej. Kate)
+  // sí hubieran registrado su tiempo. Arranca en 'Todos' para que se vea
+  // siempre todo el equipo por defecto, igual que el resto de módulos.
+  const [filtroPersona, setFiltroPersona] = useState('Todos')
 
   const empleados = useMemo(() => {
     const nombres = Array.from(new Set(registros.map(r => r.persona))).sort()
