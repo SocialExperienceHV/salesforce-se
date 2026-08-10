@@ -291,7 +291,7 @@ export default function SeguimientoPage() {
     else { setSortCol(col); setSortDir('asc') }
   }
 
-  const clientesFiltro = ['Todos', ...clientesStore.map(c => c.nombre)]
+  const clientesFiltro = ['Todos', ...clientesStore.map(c => c.nombre).sort((a, b) => a.localeCompare(b, 'es'))]
   const ejecutivosFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
   const estadosFiltro = ['Todos', 'En propuesta', 'En negociación', 'Vendido', 'Perdido']
 

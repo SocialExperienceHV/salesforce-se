@@ -19,6 +19,7 @@ const meses = [
 export default function NuevoProyectoPage() {
   const router = useRouter()
   const { addProyecto, clientes: clientesStore, personasStore } = useStore()
+  const clientesOrdenados = [...clientesStore].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
   // Solo personas del área Comercial (KAMs)
   const kams = personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)
@@ -106,7 +107,7 @@ export default function NuevoProyectoPage() {
               <Select value={cliente} onValueChange={(v) => v && handleClienteChange(v)}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>
-                  {clientesStore.map(c => <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>)}
+                  {clientesOrdenados.map(c => <SelectItem key={c.id} value={c.nombre}>{c.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

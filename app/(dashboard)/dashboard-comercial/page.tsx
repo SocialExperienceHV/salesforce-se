@@ -260,7 +260,7 @@ export default function DashboardComercialPage() {
   }
 
   const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
-  const clientesFiltroOpts = ['Todos', ...clientesStore.filter(c => !c.inactivoComercial).map(c => c.nombre)]
+  const clientesFiltroOpts = ['Todos', ...clientesStore.filter(c => !c.inactivoComercial).map(c => c.nombre).sort((a, b) => a.localeCompare(b, 'es'))]
   const mesesFiltro = ['Todos', ...MESES_ES]
   const clientesInactivos = useMemo(() => clientesStore.filter(c => c.inactivoComercial), [clientesStore])
 

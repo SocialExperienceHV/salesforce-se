@@ -363,6 +363,7 @@ export default function ProyectosPage() {
   // Proyectos "OT" de re-numeración: ya se contaron antes bajo otro centro de
   // costo, así que no deben aparecer ni sumar aquí (ver Proyecto.excluirDeReportes)
   const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
+  const clientesOrdenados = useMemo(() => [...clientes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), [clientes])
   const [search, setSearch] = useState('')
   const [tipo, setTipo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')
@@ -382,7 +383,7 @@ export default function ProyectosPage() {
     else { setSortCol(col); setSortDir('desc') }
   }
 
-  const clientesFiltro = ['Todos', ...clientes.map(c => c.nombre)]
+  const clientesFiltro = ['Todos', ...clientesOrdenados.map(c => c.nombre)]
   const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
   const aniosFiltro = ['Todos', ...Array.from(new Set(proyectos.map(anioDeProyecto).filter((y): y is number => y !== null))).sort((a, b) => b - a).map(String)]
   const mesesFiltro = ['Todos', ...MESES.map(m => `${m} ${anio === 'Todos' ? new Date().getFullYear() : anio}`)]
@@ -439,7 +440,7 @@ export default function ProyectosPage() {
         <EditarProyectoModal
           proyecto={editandoActual}
           onClose={() => setEditando(null)}
-          clientesStore={clientes}
+          clientesStore={clientesOrdenados}
           kams={kamsFiltro.filter(k => k !== 'Todos')}
         />
       )}
