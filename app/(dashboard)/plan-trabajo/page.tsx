@@ -446,10 +446,17 @@ export default function PlanTrabajoPage() {
     const proyecto = proyectos.find(p => p.id === nuevaProyecto)
     if (!proyecto) return
 
+    // Se agrega al campo que corresponde según el área real de la persona
+    // (antes siempre se metía a personasProduccion sin importar el área, por
+    // eso terminaban apareciendo diseñadores/creativos en la columna
+    // "Productor" de Tráfico, que solo debería mostrar área Producción).
+    const personaInfo = personasStore.find(ps => ps.nombre === nuevaPersona)
+    const campo: 'personasProduccion' | 'personasCreatividad' = personaInfo?.area === 'Producción' ? 'personasProduccion' : 'personasCreatividad'
+
     // Asegurar que la persona esté en la lista del proyecto para que aparezca en la matriz
     const yaEsta = [...(proyecto.personasProduccion ?? []), ...(proyecto.personasCreatividad ?? [])].includes(nuevaPersona)
     if (!yaEsta) {
-      updateProyecto(nuevaProyecto, { personasProduccion: [...(proyecto.personasProduccion ?? []), nuevaPersona] })
+      updateProyecto(nuevaProyecto, { [campo]: [...(proyecto[campo] ?? []), nuevaPersona] })
     }
 
     // Asignar el día via override. Si la labor ya estaba Finalizada, esto la reabre
