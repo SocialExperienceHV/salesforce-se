@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FolderOpen, Plus, Search, MoreHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { FolderOpen, Plus, Search, MoreHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown, Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -62,26 +62,58 @@ function anioDeProyecto(p: Proyecto): number | null {
 }
 
 // ─── Panel detalle ──────────────────────────────────────────────────────────────
-function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, onVentaRealChange, onEditar }: {
+function DetallePanel({ proyecto, onClose, onEstadoChange, onCentroCostoChange, onVentaRealChange, onNombreChange, onEditar }: {
   proyecto: Proyecto
   onClose: () => void
   onEstadoChange: (id: string, estado: Proyecto['estadoComercial']) => void
   onCentroCostoChange: (id: string, cc: string) => void
   onVentaRealChange: (id: string, monto: number) => void
+  onNombreChange: (id: string, nombre: string) => void
   onEditar: () => void
 }) {
   const estadoOpts: Proyecto['estadoComercial'][] = ['En propuesta', 'En negociación', 'Vendido', 'Perdido']
   const [cc, setCc] = useState(proyecto.centroCosto ?? '')
   const [venta, setVenta] = useState(proyecto.montoRealVendido ? String(proyecto.montoRealVendido) : '')
+  const [editandoNombre, setEditandoNombre] = useState(false)
+  const [nombre, setNombre] = useState(proyecto.nombre)
+
+  function guardarNombre() {
+    const v = nombre.trim()
+    if (v && v !== proyecto.nombre) onNombreChange(proyecto.id, v)
+    setEditandoNombre(false)
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: 440, height: '100%', background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="text-xs text-muted-foreground mb-1">{proyecto.cliente} · {proyecto.subcliente}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{proyecto.nombre}</div>
+            {editandoNombre ? (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input value={nombre} onChange={e => setNombre(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') guardarNombre(); if (e.key === 'Escape') { setNombre(proyecto.nombre); setEditandoNombre(false) } }}
+                  autoFocus
+                  style={{ fontSize: 15, fontWeight: 700, color: '#111827', border: '1px solid #1A56DB', borderRadius: 6, padding: '5px 8px', outline: 'none', flex: 1, minWidth: 0 }} />
+                <button onClick={guardarNombre} title="Guardar"
+                  style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1A56DB', border: 'none', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }}>
+                  <Check style={{ width: 14, height: 14, color: '#fff' }} />
+                </button>
+                <button onClick={() => { setNombre(proyecto.nombre); setEditandoNombre(false) }} title="Cancelar"
+                  style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }}>
+                  <X style={{ width: 13, height: 13, color: '#6B7280' }} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{proyecto.nombre}</div>
+                <button onClick={() => { setNombre(proyecto.nombre); setEditandoNombre(true) }} title="Editar nombre"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 2, flexShrink: 0, marginTop: 2 }}>
+                  <Pencil style={{ width: 13, height: 13 }} />
+                </button>
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 2, flexShrink: 0, marginTop: 2 }}>
             <X style={{ width: 18, height: 18 }} />
@@ -398,6 +430,7 @@ export default function ProyectosPage() {
           onEstadoChange={(id, est) => updateProyecto(id, { estadoComercial: est })}
           onCentroCostoChange={(id, cc) => updateProyecto(id, { centroCosto: cc })}
           onVentaRealChange={(id, monto) => updateProyecto(id, { montoRealVendido: monto })}
+          onNombreChange={(id, nombre) => updateProyecto(id, { nombre })}
           onEditar={() => setEditando(detalleActual)}
         />
       )}

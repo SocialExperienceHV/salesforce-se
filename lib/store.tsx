@@ -326,6 +326,31 @@ async function sbUpsertOverride(key: string, data: unknown) {
   await supabase.from('plan_overrides').upsert({ key, data })
 }
 
+// Reserva atómicamente el siguiente centro de costo disponible con un
+// compare-and-swap contra la fila 'actual' de centro_costo_counter. Antes, el
+// número se calculaba a partir de la lista de
+// proyectos en el estado local del navegador — dos creaciones casi simultáneas
+// (dos pestañas, dos personas a la vez) podían leer el mismo máximo y generar
+// el mismo centro de costo (pasó con los CC 1815 y 1822). Devuelve null si no
+// logra reservarlo tras varios intentos (p.ej. la tabla aún no existe), para
+// que quien llama pueda recurrir al cálculo local como respaldo.
+async function reservarSiguienteCentroCosto(): Promise<string | null> {
+  for (let intento = 0; intento < 8; intento++) {
+    const { data } = await supabase.from('centro_costo_counter').select('data').eq('id', 'actual').maybeSingle()
+    const actual = (data?.data as { valor?: number } | null)?.valor ?? 1799
+    const siguiente = actual + 1
+    const { data: updated, error } = await supabase
+      .from('centro_costo_counter')
+      .update({ data: { valor: siguiente } })
+      .eq('id', 'actual')
+      .eq('data->>valor', String(actual))
+      .select('id')
+    if (!error && updated && updated.length > 0) return String(siguiente)
+    // Otra creación ganó la carrera justo en este instante: reintenta con el valor fresco.
+  }
+  return null
+}
+
 // ─── Context ───────────────────────────────────────────────────────────────────
 
 type StoreCtx = {
@@ -464,14 +489,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoggedUserId(p?.id ?? null)
   }
 
-  function addProyecto(p: Omit<Proyecto, 'id' | 'createdAt'>) {
+  async function addProyecto(p: Omit<Proyecto, 'id' | 'createdAt'>) {
     // Centro de costo autogenerado desde la creación (ya no se espera a "Vendido").
     // Los centros de costo nuevos arrancan en 1800 en adelante (los existentes,
     // asignados manualmente antes de este cambio, quedan todos por debajo).
-    const usados = proyectos
-      .map(pr => parseInt((pr.centroCosto || '').trim(), 10))
-      .filter(n => !isNaN(n))
-    const centroCosto = String(Math.max(1799, ...usados) + 1)
+    // Se reserva de forma atómica contra Supabase para que dos creaciones casi
+    // simultáneas nunca terminen con el mismo número; si eso falla (p.ej. la
+    // tabla del contador aún no existe), se recurre al cálculo local de antes.
+    const reservado = await reservarSiguienteCentroCosto()
+    const centroCosto = reservado ?? (() => {
+      const usados = proyectos
+        .map(pr => parseInt((pr.centroCosto || '').trim(), 10))
+        .filter(n => !isNaN(n))
+      return String(Math.max(1799, ...usados) + 1)
+    })()
     const newP: Proyecto = { ...p, centroCosto, id: `p${Date.now()}`, createdAt: new Date().toISOString() }
     setProyectos(prev => [newP, ...prev])
     sbInsert('proyectos', newP.id, newP)
