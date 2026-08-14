@@ -56,6 +56,7 @@ export const PERMISOS: Record<Rol, string[]> = {
 
   'Producción': [
     '/seguimiento',
+    '/ppto',
     '/trafico',
     '/plan-trabajo',
     '/legalizaciones',
