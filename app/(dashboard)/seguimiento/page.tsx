@@ -205,7 +205,11 @@ function DetallePanel({ p, clientes, onClose }: { p: Proyecto; clientes: { nombr
 
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function SeguimientoPage() {
-  const { proyectos: proyectosStore, clientes: clientesStore, updateProyecto, registros, personasStore, legalizaciones } = useStore()
+  const { proyectos: proyectosStore, clientes: clientesStore, updateProyecto, registros, personasStore, legalizaciones, currentUser } = useStore()
+  // Producción usa Seguimiento solo para operar (fechas, estado), no necesita
+  // ver las cifras comerciales del período — se ocultan estas tarjetas solo
+  // para ese rol; el resto de roles con acceso al módulo las sigue viendo igual.
+  const ocultarKpisComerciales = currentUser?.permiso === 'Producción'
   // Proyectos "OT" de re-numeración: ya se contaron antes bajo otro centro de
   // costo, así que no deben aparecer ni sumar aquí (ver Proyecto.excluirDeReportes)
   const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
@@ -414,20 +418,22 @@ export default function SeguimientoPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
-        {kpis.map(({ label, value, Icon, bg, ic }) => (
-          <div key={label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 42, height: 42, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon style={{ width: 19, height: 19, color: ic }} />
+      {/* KPIs — ocultos para Producción, ver ocultarKpisComerciales arriba */}
+      {!ocultarKpisComerciales && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
+          {kpis.map(({ label, value, Icon, bg, ic }) => (
+            <div key={label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon style={{ width: 19, height: 19, color: ic }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: value.startsWith('$') ? 16 : 24, fontWeight: 700, color: '#111827', lineHeight: 1.1, whiteSpace: 'nowrap' }}>{value}</div>
+              </div>
             </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, marginBottom: 2 }}>{label}</div>
-              <div style={{ fontSize: value.startsWith('$') ? 16 : 24, fontWeight: 700, color: '#111827', lineHeight: 1.1, whiteSpace: 'nowrap' }}>{value}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
