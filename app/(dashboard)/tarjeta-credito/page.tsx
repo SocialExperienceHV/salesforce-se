@@ -16,6 +16,26 @@ const blankItem = (): ItemTC => ({ id: newItemId(), centroCosto: '', monto: 0, r
 const gesproDe = (item: ItemTC): 'Cargado' | 'No Cargado' =>
   item.centroCosto?.trim() && item.descripcion?.trim() ? 'Cargado' : 'No Cargado'
 
+// Convierte la columna "Valor" del Excel a número. Si la celda ya viene como
+// número de Excel, se usa tal cual. Pero muchos extractos (ej. exportados de
+// un banco o pegados desde otra fuente) quedan como TEXTO con formato
+// colombiano: "$ 53.700,00" — con símbolo de moneda, espacio (a veces un
+// espacio "duro"/non-breaking), punto de miles y coma decimal. Number(...)
+// sobre ese texto da NaN, así que la fila se descartaba en silencio y, si
+// todas las filas venían así, la importación completa fallaba con "No se
+// encontraron filas válidas". Aquí se limpia el texto (todo lo que no sea
+// dígito, coma, punto o signo menos), se quitan los puntos de miles y se
+// convierte la coma decimal a punto antes de parsear.
+function parseMontoExcel(raw: unknown): number {
+  if (typeof raw === 'number') return raw
+  if (raw == null) return 0
+  const limpio = String(raw).trim().replace(/[^\d.,-]/g, '')
+  if (!limpio) return 0
+  const normalizado = limpio.replace(/\./g, '').replace(',', '.')
+  const n = Number(normalizado)
+  return isNaN(n) ? 0 : n
+}
+
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const labelMes = (ym: string) => { const [y,m] = ym.split('-'); return `${MESES_ES[parseInt(m,10)-1]} ${y}` }
 
@@ -324,7 +344,7 @@ function NuevoDocModal({ tarjetasActivas, responsablesOpts, onConfirm, onConfirm
             const d = XLSX.SSF.parse_date_code(fechaRaw)
             fechaStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
           }
-          const monto = Number(r['Valor'] ?? r['valor'] ?? r['Monto'] ?? r['monto'] ?? 0)
+          const monto = parseMontoExcel(r['Valor'] ?? r['valor'] ?? r['Monto'] ?? r['monto'] ?? 0)
           return {
             id: newItemId(),
             fechaItem: fechaStr,
