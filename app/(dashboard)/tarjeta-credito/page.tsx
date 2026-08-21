@@ -2,12 +2,13 @@
 
 import { useStore } from '@/lib/store'
 import type { DocumentoTC, ItemTC } from '@/lib/store'
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import {
   CreditCard, PlusCircle, X, Download,
-  CheckCircle, Clock, Trash2, Plus, Flag, Upload,
+  CheckCircle, Clock, Trash2, Plus, Flag, Upload, ChevronsUpDown,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
 
 const fmt = (n: number) => '$ ' + Math.round(n).toLocaleString('es-CO')
 const today = () => new Date().toISOString().slice(0, 10)
@@ -480,6 +481,15 @@ export default function TarjetaCredito() {
   // reciben físicamente el soporte de cada gasto.
   const puedeEditarEstado = currentUser?.permiso === 'Administración' || currentUser?.permiso === 'Contabilidad' || currentUser?.permiso === 'Super Admin'
 
+  // Gespro (solo lectura, ver lib/queries/gespro.ts): cuando alguien registra
+  // una "Compra con tarjeta" allá, esa orden ya trae su propio centro de
+  // costo. Se cruza con el gasto de acá por tarjeta + valor exacto — es el
+  // único vínculo que comparten las dos tablas, no hay un ID en común — y se
+  // trae automáticamente al campo Centro Costos, sin pisar nunca uno que ya
+  // esté escrito a mano.
+  const [ordenesGespro, setOrdenesGespro] = useState<OrdenGespro[]>([])
+  useEffect(() => { getOrdenesGespro().then(setOrdenesGespro).catch(() => setOrdenesGespro([])) }, [])
+
   const tarjetasActivas = useMemo(()=>tarjetasCorp.filter(t=>t.activa),[tarjetasCorp])
   const [editingItemId, setEditingItemId] = useState<string|null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -525,6 +535,42 @@ export default function TarjetaCredito() {
     .filter(i=>filtroGespro==='Todos'||gesproDe(i)===filtroGespro)
     .filter(i=>filtroResponsable==='Todos'||i.responsable===filtroResponsable)
   ,[docsFiltrados,filtroEstado,filtroGespro,filtroResponsable])
+
+  // Orden de la tabla — por defecto sin ordenar (orden natural: documentos
+  // más recientes primero). Al ordenar por Tarjeta/Responsable/Valor/Gespro
+  // hay que aplanar doc+item en una sola fila, porque esas columnas viven en
+  // niveles distintos (Tarjeta es del documento, el resto es del item).
+  const [sortCol, setSortCol] = useState<'tarjeta'|'responsable'|'valor'|'gespro'|null>(null)
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
+  function toggleSort(col: 'tarjeta'|'responsable'|'valor'|'gespro') {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const filasTabla = useMemo(() => {
+    const filas = docsFiltrados.flatMap(doc => {
+      const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
+      return doc.items
+        .filter(item =>
+          (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
+          (filtroEstado==='Todos'||item.status===filtroEstado) &&
+          (filtroGespro==='Todos'||gesproDe(item)===filtroGespro)
+        )
+        .map(item => ({ doc, tarjeta, item }))
+    })
+    if (!sortCol) return filas
+    const sorted = [...filas].sort((a, b) => {
+      let va: string | number = ''
+      let vb: string | number = ''
+      if (sortCol === 'tarjeta') { va = a.doc.ultimos4; vb = b.doc.ultimos4 }
+      else if (sortCol === 'responsable') { va = a.item.responsable ?? ''; vb = b.item.responsable ?? '' }
+      else if (sortCol === 'valor') { va = a.item.monto; vb = b.item.monto }
+      else if (sortCol === 'gespro') { va = gesproDe(a.item); vb = gesproDe(b.item) }
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return sorted
+  }, [docsFiltrados, filtroResponsable, filtroEstado, filtroGespro, sortCol, sortDir])
   const totalGlobal     = useMemo(()=>allItems.reduce((s,i)=>s+i.monto,0),[allItems])
   const totalEntregados = useMemo(()=>allItems.filter(i=>i.status==='Entregado').reduce((s,i)=>s+i.monto,0),[allItems])
   const totalPendientes = useMemo(()=>allItems.filter(i=>i.status==='Pendiente').reduce((s,i)=>s+i.monto,0),[allItems])
@@ -547,6 +593,35 @@ export default function TarjetaCredito() {
   }
   function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') { patchItem(docId, itemId, {status}) }
   function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') { patchItem(docId, itemId, {gespro}) }
+
+  // itemId -> centro de costo que le corresponde según Gespro (solo mientras
+  // el campo siga vacío; una vez asignado, el item sale del mapa y no se
+  // vuelve a tocar). Cada orden de Gespro se empareja una sola vez.
+  const centroCostoSugerido = useMemo(() => {
+    const map = new Map<string, string>()
+    const ordenesCompraTarjeta = ordenesGespro.filter(o => o.modalidad === 'Compra con tarjeta' && o.tarjetaId && o.centroCosto)
+    const usadas = new Set<string>()
+    documentosTC.forEach(doc => {
+      doc.items.forEach(item => {
+        if (item.centroCosto?.trim()) return
+        const match = ordenesCompraTarjeta.find(o => !usadas.has(o.id) && o.tarjetaId === doc.tarjetaId && o.valor === item.monto)
+        if (match) { usadas.add(match.id); map.set(item.id, match.centroCosto) }
+      })
+    })
+    return map
+  }, [documentosTC, ordenesGespro])
+
+  // Aplica las coincidencias encontradas. Es seguro repetirlo: cada item que
+  // ya haya recibido su centro de costo sale de centroCostoSugerido en el
+  // siguiente cálculo (arriba se filtran los que ya tienen valor), así que
+  // esto converge solo — no reintenta sobre lo que ya se aplicó.
+  useEffect(() => {
+    centroCostoSugerido.forEach((centroCosto, itemId) => {
+      const doc = documentosTC.find(d => d.items.some(i => i.id === itemId))
+      if (doc) patchItem(doc.id, itemId, { centroCosto })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centroCostoSugerido])
 
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string, item:ItemTC) {
     addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[item], finalizado:false })
@@ -588,6 +663,7 @@ export default function TarjetaCredito() {
   const thT: React.CSSProperties = { padding:'10px 14px', fontSize:11, fontWeight:700, color:'#6B7280', textAlign:'left', whiteSpace:'nowrap', borderBottom:'2px solid #E5E7EB', background:'#F9FAFB', textTransform:'uppercase', letterSpacing:'0.04em' }
   const tdT: React.CSSProperties = { padding:'12px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #F3F4F6', verticalAlign:'middle' }
   const selS: React.CSSProperties = { height:32, padding:'0 8px', border:'1px solid #E5E7EB', borderRadius:7, fontSize:12, color:'#374151', background:'#fff', outline:'none', cursor:'pointer' }
+  const thBtn = (activo: boolean): React.CSSProperties => ({ display:'flex', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer', padding:0, fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', color: activo?'#1A56DB':'#6B7280' })
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -679,28 +755,36 @@ export default function TarjetaCredito() {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr>
-                <th style={thT}>Tarjeta</th>
+                <th style={thT}>
+                  <button onClick={()=>toggleSort('tarjeta')} style={thBtn(sortCol==='tarjeta')}>
+                    Tarjeta <ChevronsUpDown style={{width:12,height:12}}/>
+                  </button>
+                </th>
                 <th style={thT}>Fecha</th>
                 <th style={thT}>Item</th>
-                <th style={thT}>Responsable</th>
+                <th style={thT}>
+                  <button onClick={()=>toggleSort('responsable')} style={thBtn(sortCol==='responsable')}>
+                    Responsable <ChevronsUpDown style={{width:12,height:12}}/>
+                  </button>
+                </th>
                 <th style={thT}>Centro Costos</th>
                 <th style={thT}>Descripción</th>
-                <th style={{ ...thT, textAlign:'right' }}>Valor</th>
-                <th style={thT}>Gespro</th>
+                <th style={{ ...thT, textAlign:'right' }}>
+                  <button onClick={()=>toggleSort('valor')} style={{...thBtn(sortCol==='valor'), marginLeft:'auto'}}>
+                    Valor <ChevronsUpDown style={{width:12,height:12}}/>
+                  </button>
+                </th>
+                <th style={thT}>
+                  <button onClick={()=>toggleSort('gespro')} style={thBtn(sortCol==='gespro')}>
+                    Gespro <ChevronsUpDown style={{width:12,height:12}}/>
+                  </button>
+                </th>
                 <th style={thT}>Estado</th>
                 <th style={thT}>Acción</th>
               </tr>
             </thead>
             <tbody>
-              {docsFiltrados.flatMap(doc=>{
-                const tarjeta = tarjetasCorp.find(t=>t.id===doc.tarjetaId)
-                return doc.items
-                  .filter(item =>
-                    (filtroResponsable==='Todos'||item.responsable===filtroResponsable) &&
-                    (filtroEstado==='Todos'||item.status===filtroEstado) &&
-                    (filtroGespro==='Todos'||gesproDe(item)===filtroGespro)
-                  )
-                  .flatMap((item, idx)=>{
+              {filasTabla.flatMap(({doc, tarjeta, item}, idx)=>{
                     const isEditing = editingItemId===item.id
                     const inp: React.CSSProperties = { height:30, border:'1px solid #D1D5DB', borderRadius:6, padding:'0 8px', fontSize:12, color:'#111827', outline:'none', boxSizing:'border-box', width:'100%' }
                     const rows: React.ReactNode[] = [
@@ -810,7 +894,6 @@ export default function TarjetaCredito() {
                       </tr>
                     )
                     return rows
-                  })
               })}
             </tbody>
           </table>
