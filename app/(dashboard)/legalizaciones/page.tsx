@@ -272,7 +272,12 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
   const inp: React.CSSProperties = { height: 36, padding: '0 10px', fontSize: 13, border: '1px solid #E5E7EB', borderRadius: 7, outline: 'none', color: '#111827', background: '#fff', width: '100%', boxSizing: 'border-box' }
   const label: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, display: 'block' }
 
-  const ccInvalidos = gastos.filter(g => g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto))
+  // Set de centros de costo válidos, recortados: comparar con === a secas
+  // hacía que un espacio invisible al escribir o pegar el CC (ej. "1734 ")
+  // marcara "CC no existe" aunque el proyecto sí existiera — ya pasó algo
+  // parecido con nombres con espacio de más en Calendar.
+  const centrosCostoValidos = useMemo(() => new Set(proyectos.map(p => (p.centroCosto ?? '').trim()).filter(Boolean)), [proyectos])
+  const ccInvalidos = gastos.filter(g => g.centroCosto && !centrosCostoValidos.has(g.centroCosto.trim()))
 
   function handleGuardar(estado: Legalizacion['estado']) {
     if (ccInvalidos.length > 0) return
@@ -392,8 +397,8 @@ function FormularioLegalizacion({ initial, onSave, onCancel }: {
                   <tr key={g.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
                     <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       <input value={g.centroCosto} onChange={e => updateGasto(g.id, { centroCosto: e.target.value })}
-                        style={{ ...inp, width: 70, borderColor: g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto) ? '#EF4444' : undefined }} />
-                      {g.centroCosto && !proyectos.some(p => p.centroCosto === g.centroCosto) && (
+                        style={{ ...inp, width: 70, borderColor: g.centroCosto && !centrosCostoValidos.has(g.centroCosto.trim()) ? '#EF4444' : undefined }} />
+                      {g.centroCosto && !centrosCostoValidos.has(g.centroCosto.trim()) && (
                         <div style={{ fontSize: 10, color: '#EF4444', marginTop: 3, width: 70, lineHeight: 1.3 }}>
                           CC no existe
                         </div>

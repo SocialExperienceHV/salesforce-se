@@ -269,13 +269,33 @@ export function setLoggedUserId(id: string | null) {
 // Supabase/PostgREST solo devuelve 1000 filas por consulta por defecto. Sin
 // paginar, cualquier tabla que supere ese tamaño (como ya le pasó a
 // "proyectos") pierde filas en silencio para todos los usuarios.
+//
+// Antes, si UNA sola página fallaba por un error transitorio de red (no se
+// revisaba `error` para nada), el loop cortaba ahí mismo y devolvía solo lo
+// cargado hasta ese punto — sin avisar a nadie. Con tablas grandes eso deja
+// afuera justo las filas más nuevas (las de páginas siguientes), como pasó
+// con un proyecto real cuyo centro de costo "no existía" para alguien en
+// Legalizaciones aunque sí estaba en la base de datos. Ahora cada página
+// reintenta unas veces antes de darse por vencida, y si aun así falla queda
+// registrado en consola en vez de desaparecer en silencio.
 async function sbGet<T>(table: string): Promise<T[]> {
   const PAGE = 1000
   const all: { data: T }[] = []
   let from = 0
   for (;;) {
-    const { data } = await supabase.from(table).select('data').range(from, from + PAGE - 1)
-    if (!data || data.length === 0) break
+    let data: { data: T }[] | null = null
+    let ultimoError: unknown = null
+    for (let intento = 0; intento < 3; intento++) {
+      const res = await supabase.from(table).select('data').range(from, from + PAGE - 1)
+      if (!res.error) { data = res.data; break }
+      ultimoError = res.error
+      await new Promise(r => setTimeout(r, 300 * (intento + 1)))
+    }
+    if (data === null) {
+      console.error(`sbGet('${table}'): no se pudo cargar la página desde la fila ${from} tras 3 intentos — los datos de esta tabla pueden quedar incompletos.`, ultimoError)
+      break
+    }
+    if (data.length === 0) break
     all.push(...(data as { data: T }[]))
     if (data.length < PAGE) break
     from += PAGE
