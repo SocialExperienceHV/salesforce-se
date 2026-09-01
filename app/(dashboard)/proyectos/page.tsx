@@ -389,7 +389,7 @@ export default function ProyectosPage() {
   const mesesFiltro = ['Todos', ...MESES.map(m => `${m} ${anio === 'Todos' ? new Date().getFullYear() : anio}`)]
 
   const filtered = proyectos.filter(p => {
-    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || p.cliente.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || p.cliente.toLowerCase().includes(search.toLowerCase()) || (p.centroCosto ?? '').trim().includes(search.trim())
     const matchTipo = tipo === 'Todos' || p.tipo === tipo
     const matchEstado = estado === 'Todos' || p.estadoComercial === estado
     const matchEjecutivo = ejecutivo === 'Todos' || p.ejecutivo === ejecutivo
@@ -527,7 +527,7 @@ export default function ProyectosPage() {
         </Select>
         <div className="relative ml-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar proyecto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-56 text-sm" />
+          <Input placeholder="Buscar proyecto o CC..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-56 text-sm" />
         </div>
       </div>
 
