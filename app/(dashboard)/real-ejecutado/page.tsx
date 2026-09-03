@@ -155,9 +155,20 @@ export default function RealEjecutadoPage() {
     [gastosCC],
   )
   const totalAnticipoLegalizaciones = useMemo(() => {
-    return legalizaciones
-      .filter(l => (l.gastos ?? []).some(g => ccKey(g.centroCosto) === ccSel) || ccKey(l.centroCosto) === ccSel)
-      .reduce((s, l) => s + (l.gastos ?? []).reduce((s2, g) => s2 + (g.total ?? 0), 0), 0)
+    // Una legalización puede traer gastos de varios centros de costo en el
+    // mismo documento (ej. un productor que reporta parqueaderos de un
+    // proyecto y viáticos de otro juntos). Antes se sumaba el documento
+    // COMPLETO apenas alguno de sus gastos tocara este CC — así que un
+    // centro de costo terminaba cargando también el gasto de otros
+    // proyectos que compartían la misma legalización.
+    return legalizaciones.reduce((total, l) => {
+      const gastosDeEsteCC = (l.gastos ?? []).filter(g => ccKey(g.centroCosto) === ccSel)
+      if (gastosDeEsteCC.length > 0) return total + gastosDeEsteCC.reduce((s, g) => s + (g.total ?? 0), 0)
+      // Formato viejo sin centro de costo por gasto: si el del documento
+      // coincide, sí cuenta completa (no hay cómo desglosarla más).
+      if (ccKey(l.centroCosto) === ccSel) return total + (l.gastos ?? []).reduce((s, g) => s + (g.total ?? 0), 0)
+      return total
+    }, 0)
   }, [legalizaciones, ccSel])
   const totalAnticipos = totalAnticipoGespro + totalAnticipoLegalizaciones
 
