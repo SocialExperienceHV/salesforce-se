@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw, Gauge } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { Proyecto, MetaComercial, MetaKam, Cliente } from '@/lib/store'
+import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -17,6 +18,10 @@ function fmtK(n: number) {
 function pctStr(n: number | null) {
   if (n == null) return '—'
   return `${n.toFixed(1).replace('.', ',')}%`
+}
+function colorUtilidad(n: number | null): string {
+  if (n == null) return '#9CA3AF'
+  return n >= 0 ? '#15803D' : '#B91C1C'
 }
 function colorCumplimiento(p: number | null): string {
   if (p == null) return '#9CA3AF'
@@ -220,10 +225,37 @@ export default function DashboardComercialPage() {
   const {
     proyectos: proyectosStore, clientes: clientesStore, updateCliente, personasStore,
     metasComerciales, upsertMetaComercial, metasGlobales, upsertMetaGlobal,
-    metasKam, upsertMetaKam,
+    metasKam, upsertMetaKam, legalizaciones,
   } = useStore()
   // Igual que Proyectos y Seguimiento: los "OT" de re-numeración no cuentan aquí.
   const proyectos = useMemo(() => proyectosStore.filter(p => !p.excluirDeReportes), [proyectosStore])
+
+  // Costos reales por centro de costo — Gespro 2.0 (órdenes de compra, compra
+  // con tarjeta y anticipos) + gastos de Legalizaciones de Calendar 2.0, cada
+  // gasto atribuido a SU PROPIO centro de costo (mismo criterio que Seguimiento
+  // de Proyectos y que "Total de costos" en Gespro). Ojo: una legalización
+  // puede traer gastos de varios centros de costo en un mismo documento, así
+  // que hay que sumar gasto por gasto y no el total del documento completo.
+  const [ordenesGespro, setOrdenesGespro] = useState<OrdenGespro[]>([])
+  useEffect(() => { getOrdenesGespro().then(setOrdenesGespro).catch(() => setOrdenesGespro([])) }, [])
+
+  const costoPorCentroCosto = useMemo(() => {
+    const map: Record<string, number> = {}
+    const proyectoPorId = new Map(proyectos.map(p => [p.id, p]))
+    ordenesGespro.forEach(o => {
+      const cc = (o.proyectoId ? proyectoPorId.get(o.proyectoId)?.centroCosto : undefined) || o.centroCosto
+      if (!cc) return
+      map[cc] = (map[cc] ?? 0) + o.valor
+    })
+    legalizaciones.forEach(l => {
+      l.gastos?.forEach(g => {
+        const cc = g.centroCosto || l.centroCosto
+        if (!cc) return
+        map[cc] = (map[cc] ?? 0) + g.total
+      })
+    })
+    return map
+  }, [ordenesGespro, legalizaciones, proyectos])
 
   const today = new Date()
   const anios = useMemo(() => {
@@ -288,6 +320,22 @@ export default function DashboardComercialPage() {
     return map
   }, [proyectos, anio])
 
+  // Los mismos proyectos Vendidos que arriba, pero guardando el proyecto
+  // completo (no solo la suma) — así se sabe qué centros de costo atribuirle
+  // a la Utilidad de cada cliente, respetando el mismo filtro de Mes.
+  const proyectosVendidosPorCliente = useMemo(() => {
+    const map = new Map<string, Proyecto[]>()
+    proyectos.forEach(p => {
+      if (p.estadoComercial !== 'Vendido') return
+      const f = fechaVenta(p)
+      if (!f || f.anio !== anio) return
+      const arr = map.get(p.cliente) ?? []
+      arr.push(p)
+      map.set(p.cliente, arr)
+    })
+    return map
+  }, [proyectos, anio])
+
   const metaPorCliente = useMemo(() => {
     const map = new Map<string, MetaComercial>()
     metasComerciales.filter(m => m.anio === anio).forEach(m => map.set(m.cliente, m))
@@ -320,9 +368,17 @@ export default function DashboardComercialPage() {
       const metaHastaHoy = sumMesesHasta(meta?.meses, mesRitmo)
       const ventaHastaHoy = sumMesesHasta(ventaMeses, mesRitmo)
       const pctRitmo = metaHastaHoy > 0 ? (ventaHastaHoy / metaHastaHoy) * 100 : null
-      return { cliente: c, proyeccion, ventaReal, pctCliente, pctGlobal, ventaHastaHoy, pctRitmo }
+      // Utilidad = venta real de este cliente (mismos proyectos que arriba,
+      // respetando el filtro de Mes) − sus costos reales de Gespro, sumados
+      // por el centro de costo de cada uno de esos proyectos.
+      const proyectosCliente = (proyectosVendidosPorCliente.get(c.nombre) ?? [])
+        .filter(p => !mesKey || String(fechaVenta(p)?.mes) === mesKey)
+      const costos = proyectosCliente.reduce((s, p) => s + (p.centroCosto ? (costoPorCentroCosto[p.centroCosto] ?? 0) : 0), 0)
+      const utilidad = ventaReal - costos
+      const rentabilidad = ventaReal > 0 ? (utilidad / ventaReal) * 100 : null
+      return { cliente: c, proyeccion, ventaReal, pctCliente, pctGlobal, ventaHastaHoy, pctRitmo, costos, utilidad, rentabilidad }
     })
-  }, [clientesFiltrados, metaPorCliente, ventaPorClienteMes, mesKey, metaGlobalValor, mesRitmo])
+  }, [clientesFiltrados, metaPorCliente, ventaPorClienteMes, mesKey, metaGlobalValor, mesRitmo, proyectosVendidosPorCliente, costoPorCentroCosto])
 
   const filasOrdenadas = useMemo(() => {
     if (!sortCol) return filas
@@ -336,6 +392,8 @@ export default function DashboardComercialPage() {
       else if (sortCol === 'pctCliente')  { va = a.pctCliente ?? -1;  vb = b.pctCliente ?? -1 }
       else if (sortCol === 'pctGlobal')   { va = a.pctGlobal ?? -1;   vb = b.pctGlobal ?? -1 }
       else if (sortCol === 'pctRitmo')    { va = a.pctRitmo ?? -1;    vb = b.pctRitmo ?? -1 }
+      else if (sortCol === 'utilidad')    { va = a.utilidad;          vb = b.utilidad }
+      else if (sortCol === 'rentabilidad') { va = a.rentabilidad ?? -Infinity; vb = b.rentabilidad ?? -Infinity }
       const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es')
       return sortDir === 'asc' ? cmp : -cmp
     })
@@ -628,6 +686,8 @@ export default function DashboardComercialPage() {
                   { label: 'KAM',                           col: 'kam' },
                   { label: 'Proyección',                    col: 'proyeccion' },
                   { label: 'Venta real',                    col: 'ventaReal' },
+                  { label: 'Utilidad',                       col: 'utilidad', title: 'Venta real del cliente menos todos sus costos reales (órdenes y legalizaciones de Gespro).' },
+                  { label: 'Rentabilidad',                   col: 'rentabilidad', title: 'Utilidad / Venta real' },
                   { label: '% Cumpl. cliente',              col: 'pctCliente' },
                   { label: '% Cumpl. global',                col: 'pctGlobal' },
                   { label: `% Ritmo${mesRitmoLabel ? ` (a ${mesRitmoLabel})` : ''}`, col: 'pctRitmo', title: 'Compara lo vendido hasta hoy contra lo que debería llevar acumulado a esta fecha, según la meta mensual.' },
@@ -650,7 +710,7 @@ export default function DashboardComercialPage() {
             <tbody>
               {filasOrdenadas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
+                  <td colSpan={10} style={{ padding: '40px 20px', textAlign: 'center', fontSize: 14, color: '#9CA3AF' }}>
                     No hay clientes activos con los filtros seleccionados.
                   </td>
                 </tr>
@@ -688,6 +748,14 @@ export default function DashboardComercialPage() {
                     {/* Venta real */}
                     <td style={{ ...td, fontWeight: 600, color: f.ventaReal > 0 ? '#15803D' : '#D1D5DB', fontStyle: f.ventaReal > 0 ? 'normal' : 'italic' }}>
                       {f.ventaReal > 0 ? fmt(f.ventaReal) : '—'}
+                    </td>
+                    {/* Utilidad */}
+                    <td style={{ ...td, fontWeight: 600, color: f.ventaReal > 0 ? colorUtilidad(f.utilidad) : '#D1D5DB', fontStyle: f.ventaReal > 0 ? 'normal' : 'italic' }}>
+                      {f.ventaReal > 0 ? fmt(f.utilidad) : '—'}
+                    </td>
+                    {/* Rentabilidad */}
+                    <td style={{ ...td, fontWeight: 600, color: colorUtilidad(f.rentabilidad) }}>
+                      {pctStr(f.rentabilidad)}
                     </td>
                     {/* % Cumpl. cliente */}
                     <td style={td}>
