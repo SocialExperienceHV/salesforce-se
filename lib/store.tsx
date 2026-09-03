@@ -230,6 +230,10 @@ export type Prospecto = {
   valor: number
   notas: string
   createdAt: string
+  // Sin valor (undefined) se trata como 'Activo' — así los prospectos que ya
+  // existían antes de este campo siguen apareciendo en el listado igual que
+  // siempre. Solo se ocultan los que alguien marque 'Inactivo' explícitamente.
+  estado?: 'Activo' | 'Inactivo'
 }
 
 // ─── Initial personas (seed only if DB is empty) ───────────────────────────────

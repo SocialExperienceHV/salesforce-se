@@ -122,7 +122,7 @@ function NuevoProspectoModal({ onClose, kams }: { onClose: () => void; kams: str
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.empresa.trim()) return
-    addProspecto({ ...form, valor: 0, notas: '', ultimoContactoFecha: todayISO(), ultimoContactoTexto: 'Prospecto creado.', proximoSeguimientoFecha: '', proximoSeguimientoTexto: '' })
+    addProspecto({ ...form, valor: 0, notas: '', ultimoContactoFecha: todayISO(), ultimoContactoTexto: 'Prospecto creado.', proximoSeguimientoFecha: '', proximoSeguimientoTexto: '', estado: 'Activo' })
     onClose()
   }
 
@@ -209,6 +209,7 @@ function EditarProspectoModal({ prospecto, onClose, kams }: { prospecto: Prospec
     empresa: prospecto.empresa, contacto: prospecto.contacto, telefono: prospecto.telefono ?? '',
     email: prospecto.email ?? '', cargo: prospecto.cargo ?? '', origen: prospecto.origen ?? '',
     primerContactoPersona: prospecto.primerContactoPersona ?? '', comercial: prospecto.comercial ?? '', fase: prospecto.fase,
+    estado: prospecto.estado ?? 'Activo',
   })
 
   function handleSubmit(e: React.FormEvent) {
@@ -277,7 +278,19 @@ function EditarProspectoModal({ prospecto, onClose, kams }: { prospecto: Prospec
                 {FASES.map(f => <option key={f}>{f}</option>)}
               </select>
             </div>
+            <div>
+              <label style={lbl}>Estado</label>
+              <select value={form.estado} onChange={e => setForm(f => ({...f, estado: e.target.value as 'Activo' | 'Inactivo'}))} style={sel}>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+              </select>
+            </div>
           </div>
+          {form.estado === 'Inactivo' && (
+            <div style={{ fontSize: 12, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 7, padding: '8px 10px' }}>
+              Al guardar como Inactivo, este prospecto deja de aparecer en el listado principal.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button type="button" onClick={onClose}
               style={{ flex: 1, height: 38, border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 500, color: '#374151', background: '#fff', cursor: 'pointer' }}>
@@ -306,6 +319,9 @@ export default function ProspeccionPage() {
   const [editingProspecto, setEditingProspecto] = useState<Prospecto | null>(null)
 
   const filtered = useMemo(() => prospectos.filter(p => {
+    // Los marcados Inactivo desde "Editar" no aparecen en el listado. Sin
+    // estado (prospectos creados antes de este campo) se tratan como Activo.
+    if (p.estado === 'Inactivo') return false
     if (search && !p.empresa.toLowerCase().includes(search.toLowerCase()) && !(p.contacto ?? '').toLowerCase().includes(search.toLowerCase())) return false
     if (filtroFase !== 'Todos' && p.fase !== filtroFase) return false
     if (filtroContacto !== 'Todos' && p.primerContactoPersona !== filtroContacto) return false
@@ -514,7 +530,7 @@ export default function ProspeccionPage() {
       </div>
 
       <div style={{ fontSize: 13, color: '#9CA3AF' }}>
-        Mostrando {filtered.length} de {prospectos.length} prospectos
+        Mostrando {filtered.length} de {prospectos.filter(p => p.estado !== 'Inactivo').length} prospectos
       </div>
 
       {showModal && <NuevoProspectoModal onClose={() => setShowModal(false)} kams={kams} />}
