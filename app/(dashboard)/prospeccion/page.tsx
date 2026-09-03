@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown, Pencil } from 'lucide-react'
+import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown, ChevronUp, ChevronsUpDown, Pencil } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import type { Prospecto } from '@/lib/store'
 
@@ -317,6 +317,13 @@ export default function ProspeccionPage() {
   const [filtroContacto, setFiltroContacto] = useState('Todos')
   const [showModal, setShowModal] = useState(false)
   const [editingProspecto, setEditingProspecto] = useState<Prospecto | null>(null)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   const filtered = useMemo(() => prospectos.filter(p => {
     // Los marcados Inactivo desde "Editar" no aparecen en el listado. Sin
@@ -327,6 +334,26 @@ export default function ProspeccionPage() {
     if (filtroContacto !== 'Todos' && p.primerContactoPersona !== filtroContacto) return false
     return true
   }), [prospectos, search, filtroFase, filtroContacto])
+
+  const filtrados = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      let va = ''
+      let vb = ''
+      if      (sortCol === 'empresa')              { va = a.empresa;                        vb = b.empresa }
+      else if (sortCol === 'contacto')              { va = a.contacto ?? '';                 vb = b.contacto ?? '' }
+      else if (sortCol === 'cargo')                 { va = a.cargo ?? '';                    vb = b.cargo ?? '' }
+      else if (sortCol === 'primerContactoPersona') { va = a.primerContactoPersona ?? '';    vb = b.primerContactoPersona ?? '' }
+      else if (sortCol === 'comercial')             { va = a.comercial ?? '';                vb = b.comercial ?? '' }
+      else if (sortCol === 'origen')                { va = a.origen ?? '';                   vb = b.origen ?? '' }
+      else if (sortCol === 'fase')                  { va = a.fase;                           vb = b.fase }
+      else if (sortCol === 'fechaPrimerContacto')   { va = a.createdAt ?? '';                vb = b.createdAt ?? '' }
+      else if (sortCol === 'ultimoContacto')        { va = a.ultimoContactoFecha ?? '';      vb = b.ultimoContactoFecha ?? '' }
+      else if (sortCol === 'proximoSeguimiento')    { va = a.proximoSeguimientoFecha ?? '';  vb = b.proximoSeguimientoFecha ?? '' }
+      const cmp = va.localeCompare(vb, 'es')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortCol, sortDir])
 
   // KPIs
   const activos   = prospectos.filter(p => p.fase !== 'No avanza / Descartado').length
@@ -415,27 +442,41 @@ export default function ProspeccionPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
             <thead>
               <tr>
-                <th style={th}>Empresa</th>
-                <th style={th}>Contacto</th>
-                <th style={th}>Cargo</th>
-                <th style={th}>Primer contacto</th>
-                <th style={th}>Comercial</th>
-                <th style={th}>Origen</th>
-                <th style={th}>Fase</th>
-                <th style={{ ...th, whiteSpace: 'normal', lineHeight: 1.3 }}>Fecha primer<br/>contacto</th>
-                <th style={th}>Último contacto</th>
-                <th style={th}>Próximo seguimiento</th>
-                <th style={th}>Acción</th>
+                {([
+                  { label: 'Empresa',                              col: 'empresa' },
+                  { label: 'Contacto',                              col: 'contacto' },
+                  { label: 'Cargo',                                 col: 'cargo' },
+                  { label: 'Primer contacto',                       col: 'primerContactoPersona' },
+                  { label: 'Comercial',                             col: 'comercial' },
+                  { label: 'Origen',                                col: 'origen' },
+                  { label: 'Fase',                                  col: 'fase' },
+                  { label: <>Fecha primer<br/>contacto</>,          col: 'fechaPrimerContacto', normal: true },
+                  { label: 'Último contacto',                       col: 'ultimoContacto' },
+                  { label: 'Próximo seguimiento',                   col: 'proximoSeguimiento' },
+                  { label: 'Acción' },
+                ] as { label: React.ReactNode; col?: string; normal?: boolean }[]).map(({ label, col, normal }, i) => (
+                  <th key={i} onClick={col ? () => toggleSort(col) : undefined}
+                    style={{ ...th, cursor: col ? 'pointer' : 'default', userSelect: 'none', ...(normal ? { whiteSpace: 'normal', lineHeight: 1.3 } : {}) }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {label}
+                      {col && (sortCol === col
+                        ? sortDir === 'asc'
+                          ? <ChevronUp style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                          : <ChevronDown style={{ width: 12, height: 12, color: '#1A56DB' }} />
+                        : <ChevronsUpDown style={{ width: 12, height: 12, color: '#D1D5DB' }} />)}
+                    </span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {filtrados.length === 0 ? (
                 <tr>
                   <td colSpan={11} style={{ ...td, textAlign: 'center', color: '#9CA3AF', padding: '40px 20px' }}>
                     No hay prospectos que coincidan con los filtros.
                   </td>
                 </tr>
-              ) : filtered.map(p => {
+              ) : filtrados.map(p => {
                 const fStyle = FASE_STYLE[p.fase] ?? { bg: '#F9FAFB', color: '#6B7280' }
                 return (
                   <tr key={p.id} style={{ transition: 'background 0.1s' }}
