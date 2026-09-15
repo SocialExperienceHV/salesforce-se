@@ -6,11 +6,18 @@ import type { ModalidadGastoGespro } from './queries/gespro'
 // vendió y qué gastos de Gespro (órdenes/anticipos/tarjeta) se le asignaron a
 // cada fila de ese presupuesto.
 
+// Además de las 3 modalidades de Gespro, un gasto asignado a una fila puede
+// venir de una Legalización de Calendar 2.0 (cuenta de cobro, factura
+// electrónica, documento equivalente, etc. — ver GastoLegalizacion.tipoFactura
+// en lib/store.tsx). No se distingue por tipoFactura aquí porque para efectos
+// de "en qué rubro se gastó" da igual el soporte, todas cuentan igual.
+export type ModalidadAsignacion = ModalidadGastoGespro | 'Legalización'
+
 export type AsignacionGasto = {
   id: string
   rowId: string
   gastoId: string
-  modalidad: ModalidadGastoGespro
+  modalidad: ModalidadAsignacion
   monto: number
   createdAt: string
 }

@@ -11,18 +11,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { useStore } from '@/lib/store'
+import { useStore, type Legalizacion, type GastoLegalizacion } from '@/lib/store'
 import {
   type PptoBudget, type PptoRow, fmt, money, calcTotals, calcRow, utilColor, mkRow, parseNum,
 } from '@/lib/ppto/calculations'
 import {
   getOrdenesGespro, getProveedoresGespro, nombreProveedorGespro,
-  type OrdenGespro, type ProveedorGespro, type ModalidadGastoGespro,
+  type OrdenGespro, type ProveedorGespro,
 } from '@/lib/queries/gespro'
 import {
   getRealEjecutados, guardarRealEjecutado, uid,
-  type RealEjecutado, type AsignacionGasto,
+  type RealEjecutado, type AsignacionGasto, type ModalidadAsignacion,
 } from '@/lib/real-ejecutado'
+
+// Un gasto que se puede asignar a una fila del presupuesto, ya sea que venga
+// de Gespro (Orden de compra / Compra con tarjeta / Anticipo) o de una
+// Legalización de Calendar 2.0 (cuenta de cobro y demás soportes). Se unifica
+// en un solo tipo para que el modal de "Asignar gasto" y los cálculos de
+// saldo/huérfanos no tengan que distinguir la fuente.
+type GastoAsignable = {
+  id: string
+  modalidad: ModalidadAsignacion
+  valor: number
+  label: string
+  sublabel?: string
+}
 
 type Vista = 'landing' | 'seleccionVersion' | 'editor'
 
@@ -112,27 +125,89 @@ export default function RealEjecutadoPage() {
     return o.descripcion?.trim() || 'Anticipo'
   }
 
-  function saldoDe(o: OrdenGespro): number {
-    const asignado = (realSel?.asignaciones ?? []).filter(a => a.gastoId === o.id).reduce((s, a) => s + a.monto, 0)
-    return o.valor - asignado
+  function nombreGastoLegalizacion(g: GastoLegalizacion): string {
+    return `${g.tipoFactura} — ${g.descripcion?.trim() || g.tipoGasto || 'Gasto'}`
   }
 
-  // Si el gasto de Gespro asignado a una fila se borra allá (o se le cambia el
-  // centro de costo), la asignación queda huérfana: se sigue mostrando como
-  // "Gasto eliminado" para que se pueda quitar o reasignar, pero no debe seguir
-  // sumando como costo real — si no, el total ordenado queda inflado con dinero
-  // fantasma que ya no corresponde a ningún gasto existente.
+  // Una legalización puede traer gastos de varios centros de costo en el mismo
+  // documento (ej. un productor que reporta parqueaderos de un proyecto y
+  // viáticos de otro juntos). Si ningún gasto individual trae su propio centro
+  // de costo, se usa el del documento completo como respaldo (formato viejo).
+  function gastosLegalizacionDeCC(l: Legalizacion, cc: string): GastoLegalizacion[] {
+    const gastosDeEsteCC = (l.gastos ?? []).filter(g => ccKey(g.centroCosto) === cc)
+    if (gastosDeEsteCC.length > 0) return gastosDeEsteCC
+    if (ccKey(l.centroCosto) === cc) return l.gastos ?? []
+    return []
+  }
+
+  const gastosLegalizacionCC = useMemo(() => {
+    const out: { gasto: GastoLegalizacion; leg: Legalizacion }[] = []
+    legalizaciones.forEach(l => gastosLegalizacionDeCC(l, ccSel).forEach(gasto => out.push({ gasto, leg: l })))
+    return out
+  }, [legalizaciones, ccSel])
+
+  // Busca un gasto de legalización por id en TODAS las legalizaciones (no solo
+  // las de este CC), igual que `ordenes.find` no filtra por CC: si ya se
+  // asignó y luego el gasto cambió de centro de costo, se sigue mostrando el
+  // chip con su nombre en vez de marcarlo como huérfano.
+  function encontrarGastoLegalizacion(gastoId: string) {
+    for (const l of legalizaciones) {
+      const gasto = (l.gastos ?? []).find(g => g.id === gastoId)
+      if (gasto) return { gasto, leg: l }
+    }
+    return null
+  }
+
+  function saldoDeId(id: string, valor: number): number {
+    const asignado = (realSel?.asignaciones ?? []).filter(a => a.gastoId === id).reduce((s, a) => s + a.monto, 0)
+    return valor - asignado
+  }
+
+  // Si el gasto (de Gespro o de una Legalización) asignado a una fila se borra
+  // en su módulo de origen (o se le cambia el centro de costo), la asignación
+  // queda huérfana: se sigue mostrando como "Gasto eliminado" para que se pueda
+  // quitar o reasignar, pero no debe seguir sumando como costo real — si no, el
+  // total ordenado queda inflado con dinero fantasma que ya no corresponde a
+  // ningún gasto existente.
+  function existeGasto(a: AsignacionGasto): boolean {
+    if (a.modalidad === 'Legalización') return legalizaciones.some(l => (l.gastos ?? []).some(g => g.id === a.gastoId))
+    return ordenes.some(o => o.id === a.gastoId)
+  }
+
   function totalValido(asigs: AsignacionGasto[]): number {
-    return asigs.filter(a => ordenes.some(o => o.id === a.gastoId)).reduce((s, a) => s + a.monto, 0)
+    return asigs.filter(existeGasto).reduce((s, a) => s + a.monto, 0)
   }
 
-  // Solo Órdenes de compra se asignan fila por fila. Compra con tarjeta y Anticipos
-  // se toman como un total automático del centro de costo (ver totalTarjeta/totalAnticipos
-  // más abajo), así que no aparecen como opción para asignar a una fila puntual.
-  const gastosDisponibles = useMemo(
-    () => gastosCC.filter(o => o.modalidad === 'Orden de compra' && saldoDe(o) > 0),
-    [gastosCC, realSel],
-  )
+  function totalAsignadoPorModalidad(modalidad: ModalidadAsignacion): number {
+    return (realSel?.asignaciones ?? [])
+      .filter(a => a.modalidad === modalidad && existeGasto(a))
+      .reduce((s, a) => s + a.monto, 0)
+  }
+
+  // Antes solo las Órdenes de compra se podían asignar fila por fila; Compra
+  // con tarjeta y Anticipos (Gespro + Legalizaciones) se tomaban como un total
+  // automático del centro de costo sin decir a qué rubro correspondían. Ahora
+  // las 4 fuentes aparecen aquí para que el productor pueda decir "esto fue
+  // para este ítem del presupuesto" — el total de arriba no cambia por esto
+  // (ver costoRealCompleto más abajo), solo se vuelve más trazable.
+  const gastosDisponibles = useMemo<GastoAsignable[]>(() => {
+    const list: GastoAsignable[] = []
+    gastosCC.forEach(o => {
+      const saldo = saldoDeId(o.id, o.valor)
+      if (saldo > 0) list.push({ id: o.id, modalidad: o.modalidad, valor: o.valor, label: nombreGasto(o) })
+    })
+    gastosLegalizacionCC.forEach(({ gasto, leg }) => {
+      const saldo = saldoDeId(gasto.id, gasto.total)
+      if (saldo > 0) {
+        list.push({
+          id: gasto.id, modalidad: 'Legalización', valor: gasto.total,
+          label: nombreGastoLegalizacion(gasto), sublabel: `${leg.responsable} · ${leg.codigo}`,
+        })
+      }
+    })
+    return list
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gastosCC, gastosLegalizacionCC, realSel])
 
   const totalTarjeta = useMemo(
     () => gastosCC.filter(o => o.modalidad === 'Compra con tarjeta').reduce((s, o) => s + o.valor, 0),
@@ -154,23 +229,20 @@ export default function RealEjecutadoPage() {
     () => gastosCC.filter(o => o.modalidad === 'Anticipo').reduce((s, o) => s + o.valor, 0),
     [gastosCC],
   )
-  const totalAnticipoLegalizaciones = useMemo(() => {
-    // Una legalización puede traer gastos de varios centros de costo en el
-    // mismo documento (ej. un productor que reporta parqueaderos de un
-    // proyecto y viáticos de otro juntos). Antes se sumaba el documento
-    // COMPLETO apenas alguno de sus gastos tocara este CC — así que un
-    // centro de costo terminaba cargando también el gasto de otros
-    // proyectos que compartían la misma legalización.
-    return legalizaciones.reduce((total, l) => {
-      const gastosDeEsteCC = (l.gastos ?? []).filter(g => ccKey(g.centroCosto) === ccSel)
-      if (gastosDeEsteCC.length > 0) return total + gastosDeEsteCC.reduce((s, g) => s + (g.total ?? 0), 0)
-      // Formato viejo sin centro de costo por gasto: si el del documento
-      // coincide, sí cuenta completa (no hay cómo desglosarla más).
-      if (ccKey(l.centroCosto) === ccSel) return total + (l.gastos ?? []).reduce((s, g) => s + (g.total ?? 0), 0)
-      return total
-    }, 0)
-  }, [legalizaciones, ccSel])
+  const totalAnticipoLegalizaciones = useMemo(
+    () => gastosLegalizacionCC.reduce((s, { gasto }) => s + (gasto.total ?? 0), 0),
+    [gastosLegalizacionCC],
+  )
   const totalAnticipos = totalAnticipoGespro + totalAnticipoLegalizaciones
+
+  // Cuánto de la tarjeta/anticipos "brutos" de arriba ya quedó asignado a una
+  // fila puntual del presupuesto (para no volver a sumarlo en costoRealCompleto
+  // más abajo) y cuánto sigue sin clasificar en ningún rubro todavía.
+  const tarjetaAsignada = totalAsignadoPorModalidad('Compra con tarjeta')
+  const anticipoGesproAsignado = totalAsignadoPorModalidad('Anticipo')
+  const legalizacionAsignada = totalAsignadoPorModalidad('Legalización')
+  const tarjetaPendiente = totalTarjeta - tarjetaAsignada
+  const anticipoPendiente = totalAnticipos - anticipoGesproAsignado - legalizacionAsignada
 
   /* ---------- navegación ---------- */
   function volverALanding() { setVista('landing'); setCcSel(''); setAsignarRowId(null) }
@@ -204,7 +276,7 @@ export default function RealEjecutadoPage() {
     await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
   }
 
-  async function asignar(rowId: string, gasto: OrdenGespro, monto: number) {
+  async function asignar(rowId: string, gasto: GastoAsignable, monto: number) {
     if (!realSel || !budgetSel || monto <= 0) return
     const nueva: AsignacionGasto = { id: uid(), rowId, gastoId: gasto.id, modalidad: gasto.modalidad, monto, createdAt: new Date().toISOString() }
     const actualizado: RealEjecutado = { ...realSel, asignaciones: [...realSel.asignaciones, nueva] }
@@ -332,10 +404,13 @@ export default function RealEjecutadoPage() {
   /* ==================== EDITOR ==================== */
   if (!realSel || !budgetSel) return <div className="realej"><Styles /></div>
   const t = calcTotals(budgetSel)
-  // La utilidad real del módulo debe descontar TODO el gasto real: órdenes de
-  // compra asignadas por fila (t.ordenado) + compra con tarjeta + anticipos, no
-  // solo lo ordenado (que es lo único que entra en calcTotals/PPTO).
-  const costoRealCompleto = t.ordenado + totalTarjeta + totalAnticipos
+  // La utilidad real del módulo debe descontar TODO el gasto real: lo asignado
+  // fila por fila (t.ordenado, que ya incluye cualquier tarjeta/anticipo que se
+  // haya clasificado en un rubro) + lo que de tarjeta/anticipos SIGUE sin
+  // asignar a ninguna fila (tarjetaPendiente/anticipoPendiente). Así el total
+  // nunca cambia por el solo hecho de ir asignando: asignar solo mueve la
+  // plata de "sin clasificar" a "esta fila", nunca la suma dos veces.
+  const costoRealCompleto = t.ordenado + tarjetaPendiente + anticipoPendiente
   const utilRealCompleta = t.totalAntesIva - costoRealCompleto
   const pctRealCompleto = t.totalAntesIva ? utilRealCompleta / t.totalAntesIva : NaN
 
@@ -348,7 +423,7 @@ export default function RealEjecutadoPage() {
       <div className="pheader">
         <div>
           <h1>{budgetSel.evento || 'Sin nombre'}</h1>
-          <p>{budgetSel.cliente || '—'} · Asigna gastos reales de Gespro a cada fila del presupuesto.</p>
+          <p>{budgetSel.cliente || '—'} · Asigna gastos reales de Gespro y Legalizaciones a cada fila del presupuesto.</p>
         </div>
       </div>
 
@@ -401,10 +476,18 @@ export default function RealEjecutadoPage() {
                   <td className="ordenadocell">
                     <div className="ordenadototal">{fmt(totalFila)}</div>
                     {asigsFila.map(a => {
-                      const o = ordenes.find(x => x.id === a.gastoId)
+                      const nombre = a.modalidad === 'Legalización'
+                        ? (() => {
+                          const encontrado = encontrarGastoLegalizacion(a.gastoId)
+                          return encontrado ? nombreGastoLegalizacion(encontrado.gasto) : null
+                        })()
+                        : (() => {
+                          const o = ordenes.find(x => x.id === a.gastoId)
+                          return o ? nombreGasto(o, false) : null
+                        })()
                       return (
-                        <div key={a.id} className={`asigchip${o ? '' : ' asigchip-huerfana'}`} title={o ? undefined : 'Este gasto ya no existe en Gespro: no suma al total, quítalo o asigna otro'}>
-                          <span className="asignom">{o ? nombreGasto(o, false) : '⚠ Gasto eliminado (no suma)'}</span>
+                        <div key={a.id} className={`asigchip${nombre ? '' : ' asigchip-huerfana'}`} title={nombre ? a.modalidad : 'Este gasto ya no existe en su módulo de origen: no suma al total, quítalo o asigna otro'}>
+                          <span className="asignom">{nombre ?? '⚠ Gasto eliminado (no suma)'}</span>
                           <span className="asigmonto">{fmt(a.monto)}</span>
                           <button className="asigx" onClick={() => quitarAsignacion(a.id)} title="Quitar">✕</button>
                         </div>
@@ -451,7 +534,17 @@ export default function RealEjecutadoPage() {
         <div className="rescard">
           <h3>Real ejecutado</h3>
           <div className="kv"><span>Compra con tarjeta</span><span className="num">{money(totalTarjeta)}</span></div>
+          {tarjetaPendiente > 0 && (
+            <div className="kv sub" title="Ya entró a Costo real total, pero todavía no se asignó a ningún rubro/fila puntual">
+              <span>↳ sin asignar a un rubro</span><span className="num" style={{ color: '#b3261e' }}>{money(tarjetaPendiente)}</span>
+            </div>
+          )}
           <div className="kv"><span>Anticipos solicitados</span><span className="num">{money(totalAnticipos)}</span></div>
+          {anticipoPendiente > 0 && (
+            <div className="kv sub" title="Ya entró a Costo real total, pero todavía no se asignó a ningún rubro/fila puntual">
+              <span>↳ sin asignar a un rubro</span><span className="num" style={{ color: '#b3261e' }}>{money(anticipoPendiente)}</span>
+            </div>
+          )}
           <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
           <div className="kv" title="Todas las órdenes de compra del centro de costo en Gespro, estén o no ya asignadas a una fila">
             <span>Total Gespro</span>
@@ -469,16 +562,17 @@ export default function RealEjecutadoPage() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
             <div className="modaltitle">Asignar gasto a esta fila</div>
             {gastosDisponibles.length === 0 ? (
-              <p className="modaltxt">No hay gastos con saldo disponible para el centro de costo {budgetSel.centroCosto}. Verifica en Gespro que la orden/anticipo/tarjeta esté cargada con este centro de costo.</p>
+              <p className="modaltxt">No hay gastos con saldo disponible para el centro de costo {budgetSel.centroCosto}. Verifica en Gespro/Legalizaciones que el gasto esté cargado con este centro de costo.</p>
             ) : (
               <div className="gastolist">
                 {gastosDisponibles.map(o => {
-                  const saldo = saldoDe(o)
+                  const saldo = saldoDeId(o.id, o.valor)
                   return (
                     <div key={o.id} className="gastorow">
                       <div className="gastoinfo">
                         <span className="gastomodalidad">{o.modalidad}</span>
-                        <span className="gastonombre">{nombreGasto(o)}</span>
+                        <span className="gastonombre">{o.label}</span>
+                        {o.sublabel && <span className="gastosublabel">{o.sublabel}</span>}
                         <span className="gastosaldo">Saldo {money(saldo)} de {money(o.valor)}</span>
                       </div>
                       <input className="in" style={{ width: 110 }} placeholder="Monto"
@@ -580,6 +674,8 @@ function Styles() {
 .realej .rescard{background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:14px 16px}
 .realej .rescard h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#6d746c}
 .realej .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13.5px}
+.realej .kv.sub{padding:0 0 6px;font-size:11px;color:#9aa398}
+.realej .kv.sub .num{font-weight:600}
 .realej .kv.total{border-top:1px solid #dde1d8;margin-top:6px;padding-top:9px;font-weight:700}
 .realej .bigpct{font-size:26px;font-weight:700;margin-top:6px}
 .realej .bar{height:10px;border-radius:6px;background:#e6e9e1;overflow:hidden;margin-top:8px}
@@ -598,6 +694,7 @@ function Styles() {
 .realej .gastoinfo{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
 .realej .gastomodalidad{font-size:10px;font-weight:600;color:#6d746c;text-transform:uppercase;letter-spacing:.04em}
 .realej .gastonombre{font-size:13px;font-weight:600;color:#191c19;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.realej .gastosublabel{font-size:11px;color:#6d746c}
 .realej .gastosaldo{font-size:11px;color:#0e7a52;font-weight:600}
 .realej .modalcancel{width:100%;border:none;background:none;color:#9aa398;cursor:pointer;font:inherit;padding:12px 0 0;font-size:13px}
 .realej .modalcancel:hover{color:#6d746c}
