@@ -90,7 +90,16 @@ export default function PptoPage() {
     return [...map.entries()].map(([centroCosto, versions]) => {
       const sorted = [...versions].sort((a, b) => b.version - a.version)
       return { centroCosto, versions: sorted, latest: sorted[0] }
-    }).sort((a, b) => (b.latest.createdAt || '').localeCompare(a.latest.createdAt || ''))
+    }).sort((a, b) => {
+      // De mayor a menor centro de costo (los CC no numéricos, ej. "Sin
+      // centro de costo", quedan al final en vez de intercalados).
+      const na = parseInt(a.centroCosto, 10)
+      const nb = parseInt(b.centroCosto, 10)
+      if (isNaN(na) && isNaN(nb)) return a.centroCosto.localeCompare(b.centroCosto)
+      if (isNaN(na)) return 1
+      if (isNaN(nb)) return -1
+      return nb - na
+    })
   }, [budgets])
 
   function grupoDe(cc: string) {
