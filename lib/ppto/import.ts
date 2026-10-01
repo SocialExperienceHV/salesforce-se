@@ -95,10 +95,13 @@ export function parseBudgetAOA(aoa: AOA): ImportResult {
     guard++
     const row = aoa[r]
     const itemRaw = cell(row, 1)
-    const aRaw = asText(cell(row, 0)).toUpperCase()
     const fRaw = cell(row, 5)
     if (itemRaw == null || asText(itemRaw) === '') {
-      if ((aRaw === 'SUBTOTAL' || aRaw === 'EVENTO') && typeof fRaw === 'number') break
+      // Fin de la tabla: una fila sin ítem pero con un número en COSTO TOTAL
+      // es la fila de totales (a veces trae "SUBTOTAL" o "EVENTO" en la
+      // columna A, a veces no trae ninguna etiqueta ahí — no hay que
+      // depender del texto, el número ya es suficiente señal).
+      if (typeof fRaw === 'number') break
       r++
       continue
     }
