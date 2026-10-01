@@ -10,7 +10,8 @@
 // ("Guardar"): si el presupuesto ya existía, siempre pregunta si sobrescribir la versión
 // actual o crear una nueva (V1, V2, V3...).
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import {
@@ -19,6 +20,7 @@ import {
   emptyBudget, normalize, calcRow, calcTotals, utilColor,
 } from '@/lib/ppto/calculations'
 import { buildStyledBlob, buildBasicBlob, exportName, type PptoExportVariant } from '@/lib/ppto/export'
+import { parseBudgetAOA, sugerirCentroCostoDeNombre, type ImportResult } from '@/lib/ppto/import'
 
 const META_FIELDS: [keyof PptoBudget, string, boolean][] = [
   ['centroCosto', 'Centro de costo', false],
@@ -66,6 +68,10 @@ export default function PptoPage() {
   const [showBaseModal, setShowBaseModal] = useState(false)
   const [searchLanding, setSearchLanding] = useState('')
   const [filtroProductor, setFiltroProductor] = useState('Todos')
+  const [importPendiente, setImportPendiente] = useState<ImportResult | null>(null)
+  const [importCcSugerido, setImportCcSugerido] = useState('')
+  const [importError, setImportError] = useState('')
+  const importFileRef = useRef<HTMLInputElement>(null)
 
   const active = useMemo(() => budgets.find(b => b.id === activeId) ?? null, [budgets, activeId])
 
@@ -230,6 +236,51 @@ export default function PptoPage() {
     return rows.map(r => ({ ...mkRow(r.proceso, r.item, r.costoUnd, r.cant, r.dias, r.costoRealUnd, 0, r.proveedor), adicional: r.adicional }))
   }
 
+  /* ---------- importar presupuesto desde Excel ---------- */
+  // El equipo ya hace los presupuestos en Excel antes de pasarlos a la app;
+  // esto lee ese mismo archivo (sin que nadie tenga que volver a digitarlo) y
+  // deja un paso de revisión (ImportModal) antes de guardar nada, porque la
+  // plantilla varía un poco de archivo a archivo y a veces trae datos mal
+  // puestos (centro de costo, cliente o evento en la celda equivocada).
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImportError('')
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null })
+        const resultado = parseBudgetAOA(aoa)
+        if (resultado.rows.length === 0) {
+          setImportError(resultado.warnings[0] || 'No se pudo leer el archivo.')
+          return
+        }
+        setImportCcSugerido(sugerirCentroCostoDeNombre(file.name))
+        setImportPendiente(resultado)
+      } catch {
+        setImportError('Error leyendo el archivo. Verifica que sea un .xlsx válido.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  async function confirmarImportar(cc: string, meta: ImportResult['meta'], rows: PptoRow[]) {
+    const existente = grupoDe(cc)
+    const version = existente ? Math.max(...existente.versions.map(v => v.version)) + 1 : 1
+    const nb = emptyBudget({
+      centroCosto: cc, cliente: meta.cliente, evento: meta.evento, fecha: meta.fecha,
+      ciudad: meta.ciudad, director: meta.director, formaPago: meta.formaPago, validez: meta.validez,
+      agenciaPct: meta.agenciaPct, version, rows,
+    })
+    setBudgets(prev => [...prev, nb])
+    await supabase.from('presupuestos').insert({ id: nb.id, data: nb })
+    setImportPendiente(null)
+    abrirEditor(nb.id)
+  }
+
   /* ---------- nueva versión en blanco desde la lista de versiones ---------- */
   async function nuevaVersionEnBlanco() {
     if (!grupoSel) return
@@ -331,9 +382,12 @@ export default function PptoPage() {
               onChange={e => { setNuevoCcInput(e.target.value); setNuevoCcError('') }}
               onKeyDown={e => { if (e.key === 'Enter') crearNuevo() }} />
             <button className="tb primary" onClick={crearNuevo}>+ Nuevo presupuesto</button>
+            <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} style={{ display: 'none' }} />
+            <button className="tb" onClick={() => importFileRef.current?.click()}>⬆ Importar Excel</button>
           </div>
           {nuevoCcError && <div className="errtxt">{nuevoCcError}</div>}
-          <div className="hint">Si el centro de costo coincide con un proyecto en Vendidos, se autocompletan cliente, evento y director.</div>
+          {importError && <div className="errtxt">{importError}</div>}
+          <div className="hint">Si el centro de costo coincide con un proyecto en Vendidos, se autocompletan cliente, evento y director. "Importar Excel" lee el presupuesto ya hecho en la plantilla de Excel del equipo, sin digitarlo de nuevo.</div>
         </div>
 
         {grupos.length === 0 ? (
@@ -382,6 +436,16 @@ export default function PptoPage() {
             onBlank={() => confirmarCrearNuevo()}
             onFromBase={rows => confirmarCrearNuevo(clonarFilasComoBase(rows))}
             onClose={() => setShowBaseModal(false)}
+          />
+        )}
+
+        {importPendiente && (
+          <ImportModal
+            resultado={importPendiente}
+            ccSugerido={importCcSugerido}
+            grupoDe={grupoDe}
+            onConfirm={(cc, meta, rows) => confirmarImportar(cc, meta, rows)}
+            onClose={() => setImportPendiente(null)}
           />
         )}
       </div>
@@ -785,6 +849,87 @@ function PptoStyles() {
 .ppto .modalbtns .tb{width:100%;padding:10px 14px}
 .ppto .modalcancel{width:100%;border:none;background:none;color:#9aa398;cursor:pointer;font:inherit;padding:10px 0 0;font-size:13px}
 .ppto .modalcancel:hover{color:#6d746c}
+.ppto .importwarn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:#92400E;line-height:1.5;display:flex;flex-direction:column;gap:6px}
+.ppto .importgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:14px}
+.ppto .importgrid label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:#6d746c;text-transform:uppercase;letter-spacing:.04em}
+.ppto .importgrid input{font:inherit;text-transform:none;font-weight:400;letter-spacing:normal;color:#191c19}
     `}</style>
+  )
+}
+
+/* ---------- modal: revisar/confirmar un presupuesto importado de Excel ---------- */
+function ImportModal({ resultado, ccSugerido, grupoDe, onConfirm, onClose }: {
+  resultado: ImportResult
+  ccSugerido: string
+  grupoDe: (cc: string) => { centroCosto: string; versions: PptoBudget[]; latest: PptoBudget } | null
+  onConfirm: (cc: string, meta: ImportResult['meta'], rows: PptoRow[]) => void
+  onClose: () => void
+}) {
+  const [cc, setCc] = useState(ccSugerido)
+  const [meta, setMeta] = useState(resultado.meta)
+
+  function set<K extends keyof ImportResult['meta']>(k: K, v: ImportResult['meta'][K]) {
+    setMeta(prev => ({ ...prev, [k]: v }))
+  }
+
+  const ccTrim = cc.trim()
+  const existente = ccTrim ? grupoDe(ccTrim) : null
+  const nextV = existente ? Math.max(...existente.versions.map(v => v.version)) + 1 : 1
+  const subtotal = resultado.rows.reduce((s, r) => s + (r.costoUnd || 0) * (r.cant || 0) * (r.dias || 0), 0)
+  const totalAntesIva = subtotal * (1 + (meta.agenciaPct || 0) / 100)
+
+  return (
+    <div className="modalbg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
+        <div className="modaltitle">Revisar presupuesto importado</div>
+        <p className="modaltxt" style={{ marginBottom: 10 }}>
+          {resultado.rows.length} ítem{resultado.rows.length === 1 ? '' : 's'} encontrados · Subtotal {money(subtotal)} · Total antes de IVA {money(totalAntesIva)}
+        </p>
+
+        {resultado.warnings.length > 0 && (
+          <div className="importwarn">
+            {resultado.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+          </div>
+        )}
+
+        <div className="importgrid">
+          <label>Centro de costo
+            <input className="in" value={cc} onChange={e => setCc(e.target.value)} />
+          </label>
+          <label>Cliente
+            <input className="in" value={meta.cliente} onChange={e => set('cliente', e.target.value)} />
+          </label>
+          <label>Evento
+            <input className="in" value={meta.evento} onChange={e => set('evento', e.target.value)} />
+          </label>
+          <label>Fecha
+            <input className="in" value={meta.fecha} onChange={e => set('fecha', e.target.value)} />
+          </label>
+          <label>Ciudad
+            <input className="in" value={meta.ciudad} onChange={e => set('ciudad', e.target.value)} />
+          </label>
+          <label>Director de proyecto
+            <input className="in" value={meta.director} onChange={e => set('director', e.target.value)} />
+          </label>
+          <label>Utilidad de agencia %
+            <input className="in" value={meta.agenciaPct} onChange={e => set('agenciaPct', parseNum(e.target.value))} />
+          </label>
+        </div>
+
+        {!ccTrim && <div className="errtxt" style={{ marginBottom: 10 }}>Escribe el centro de costo antes de guardar.</div>}
+        {existente && (
+          <p className="modaltxt" style={{ marginBottom: 14 }}>
+            El centro de costo {ccTrim} ya tiene {existente.versions.length} versión{existente.versions.length === 1 ? '' : 'es'}; esta quedará como <b>V{nextV}</b> (las anteriores no se tocan).
+          </p>
+        )}
+
+        <div className="modalbtns">
+          <button className="tb primary" disabled={!ccTrim} onClick={() => onConfirm(ccTrim, meta, resultado.rows)}>
+            Guardar como V{nextV}
+          </button>
+          <button className="tb" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
   )
 }
