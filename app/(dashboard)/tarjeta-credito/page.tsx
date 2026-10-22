@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
+import { cargarItemTCaGespro } from '@/lib/gespro-tarjetas'
 
 const fmt = (n: number) => '$ ' + Math.round(n).toLocaleString('es-CO')
 const today = () => new Date().toISOString().slice(0, 10)
@@ -496,7 +497,9 @@ export default function TarjetaCredito() {
   const [filtroTarjeta, setFiltroTarjeta] = useState('Todas')
   const [filtroResponsable, setFiltroResponsable] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
-  const [filtroEstado, setFiltroEstado] = useState('Todos')
+  // Por defecto solo los Pendientes: lo que ya se marcó Entregado queda aprobado
+  // y sale de la lista (se ve filtrando por Entregado o Todos).
+  const [filtroEstado, setFiltroEstado] = useState('Pendiente')
   const [filtroGespro, setFiltroGespro] = useState('Todos')
 
   const ccValidos = useMemo(()=>new Set(proyectos.map(p=>p.centroCosto).filter(Boolean) as string[]),[proyectos])
@@ -571,10 +574,18 @@ export default function TarjetaCredito() {
     })
     return sorted
   }, [docsFiltrados, filtroResponsable, filtroEstado, filtroGespro, sortCol, sortDir])
-  const totalGlobal     = useMemo(()=>allItems.reduce((s,i)=>s+i.monto,0),[allItems])
-  const totalEntregados = useMemo(()=>allItems.filter(i=>i.status==='Entregado').reduce((s,i)=>s+i.monto,0),[allItems])
-  const totalPendientes = useMemo(()=>allItems.filter(i=>i.status==='Pendiente').reduce((s,i)=>s+i.monto,0),[allItems])
-  const cantPendientes  = useMemo(()=>allItems.filter(i=>i.status==='Pendiente').length,[allItems])
+  // Los totales de arriba no dependen del filtro de Estado: así "Entregados" y
+  // "Pendientes" siguen mostrando su total aunque la lista solo muestre uno.
+  const itemsKpi = useMemo(()=>documentosTC
+    .filter(d=>(filtroTarjeta==='Todas'||d.ultimos4===filtroTarjeta)&&(filtroMes==='Todos'||d.fecha.startsWith(filtroMes)))
+    .flatMap(d=>d.items)
+    .filter(i=>filtroGespro==='Todos'||gesproDe(i)===filtroGespro)
+    .filter(i=>filtroResponsable==='Todos'||i.responsable===filtroResponsable)
+  ,[documentosTC,filtroTarjeta,filtroMes,filtroGespro,filtroResponsable])
+  const totalGlobal     = useMemo(()=>itemsKpi.reduce((s,i)=>s+i.monto,0),[itemsKpi])
+  const totalEntregados = useMemo(()=>itemsKpi.filter(i=>i.status==='Entregado').reduce((s,i)=>s+i.monto,0),[itemsKpi])
+  const totalPendientes = useMemo(()=>itemsKpi.filter(i=>i.status==='Pendiente').reduce((s,i)=>s+i.monto,0),[itemsKpi])
+  const cantPendientes  = useMemo(()=>itemsKpi.filter(i=>i.status==='Pendiente').length,[itemsKpi])
 
   const pendientesPorPersona = useMemo(()=>{
     const mapa: Record<string,number>={}
@@ -582,8 +593,14 @@ export default function TarjetaCredito() {
     return mapa
   },[allItems])
 
+  // Siempre se lee la versión más reciente de los documentos (no la de la
+  // pantalla cuando arrancó una operación asíncrona), para que guardar el
+  // centro de costo no pise un cambio que llegó mientras tanto.
+  const documentosRef = useRef(documentosTC)
+  documentosRef.current = documentosTC
+
   function patchItem(docId: string, itemId: string, ch: Partial<ItemTC>) {
-    const doc = documentosTC.find(d=>d.id===docId); if(!doc) return
+    const doc = documentosRef.current.find(d=>d.id===docId); if(!doc) return
     updateDocumentoTC(docId, { items: doc.items.map(i=>{
       if(i.id !== itemId) return i
       const merged = {...i,...ch}
@@ -594,18 +611,29 @@ export default function TarjetaCredito() {
   function updateItemStatus(docId: string, itemId: string, status: 'Entregado' | 'Pendiente') { patchItem(docId, itemId, {status}) }
   function updateGespro(docId: string, itemId: string, gespro: 'Cargado' | 'No Cargado') { patchItem(docId, itemId, {gespro}) }
 
-  // itemId -> centro de costo que le corresponde según Gespro (solo mientras
-  // el campo siga vacío; una vez asignado, el item sale del mapa y no se
-  // vuelve a tocar). Cada orden de Gespro se empareja una sola vez.
+  // itemId -> lo que Gespro ya sabe de ese gasto (solo mientras el campo siga
+  // vacío; una vez asignado, el item sale del mapa y no se vuelve a tocar).
+  // 1) Por id exacto: las órdenes que se cargan desde Gespro (o desde aquí)
+  //    guardan el id del gasto, así que el vínculo es seguro y trae también la
+  //    descripción. 2) Para lo viejo, que no tiene id: tarjeta + valor exacto,
+  //    una orden por gasto y solo órdenes SIN id (las que ya tienen id
+  //    pertenecen a un gasto concreto y no se pueden "adivinar" para otro).
   const centroCostoSugerido = useMemo(() => {
-    const map = new Map<string, string>()
+    const map = new Map<string, { centroCosto: string; descripcion?: string }>()
     const ordenesCompraTarjeta = ordenesGespro.filter(o => o.modalidad === 'Compra con tarjeta' && o.tarjetaId && o.centroCosto)
+    const porId = new Map(ordenesCompraTarjeta.filter(o => o.tcItemId).map(o => [o.tcItemId as string, o]))
     const usadas = new Set<string>()
     documentosTC.forEach(doc => {
       doc.items.forEach(item => {
         if (item.centroCosto?.trim()) return
-        const match = ordenesCompraTarjeta.find(o => !usadas.has(o.id) && o.tarjetaId === doc.tarjetaId && o.valor === item.monto)
-        if (match) { usadas.add(match.id); map.set(item.id, match.centroCosto) }
+        const exacta = porId.get(item.id)
+        if (exacta) {
+          usadas.add(exacta.id)
+          map.set(item.id, { centroCosto: exacta.centroCosto, descripcion: item.descripcion?.trim() ? undefined : exacta.descripcion })
+          return
+        }
+        const match = ordenesCompraTarjeta.find(o => !o.tcItemId && !usadas.has(o.id) && o.tarjetaId === doc.tarjetaId && o.valor === item.monto)
+        if (match) { usadas.add(match.id); map.set(item.id, { centroCosto: match.centroCosto }) }
       })
     })
     return map
@@ -616,12 +644,53 @@ export default function TarjetaCredito() {
   // siguiente cálculo (arriba se filtran los que ya tienen valor), así que
   // esto converge solo — no reintenta sobre lo que ya se aplicó.
   useEffect(() => {
-    centroCostoSugerido.forEach((centroCosto, itemId) => {
+    centroCostoSugerido.forEach((sug, itemId) => {
       const doc = documentosTC.find(d => d.items.some(i => i.id === itemId))
-      if (doc) patchItem(doc.id, itemId, { centroCosto })
+      if (doc) patchItem(doc.id, itemId, sug.descripcion ? { centroCosto: sug.centroCosto, descripcion: sug.descripcion } : { centroCosto: sug.centroCosto })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centroCostoSugerido])
+
+  // ─── Centro de costo escrito a mano (Contabilidad/Administración) ───────────
+  // Escribirlo aquí carga el gasto en Gespro como si el productor lo hubiera
+  // cargado allá (ver lib/gespro-tarjetas.ts). No se guarda letra por letra: se
+  // aplica con "Guardar" (o Enter), para validar el centro de costo completo.
+  const puedeEditarCC = puedeEditarEstado
+  const [ccDraft, setCcDraft] = useState<Record<string,string>>({})
+  const [ccMsg, setCcMsg] = useState<Record<string,string>>({})
+  const [ccGuardando, setCcGuardando] = useState<string|null>(null)
+
+  // Devuelve true si se puede cerrar el panel de edición (no hubo nada que
+  // aplicar, o se aplicó bien).
+  async function guardarCentroCosto(doc: DocumentoTC, item: ItemTC): Promise<boolean> {
+    const actual = (item.centroCosto ?? '').trim()
+    const nuevo = (ccDraft[item.id] ?? actual).trim()
+    if (!puedeEditarCC || nuevo === actual) return true
+    setCcMsg(m => ({ ...m, [item.id]: '' }))
+    if (!nuevo) {
+      setCcMsg(m => ({ ...m, [item.id]: 'Para quitar el centro de costo de un gasto ya cargado hay que hacerlo en Gespro.' }))
+      return false
+    }
+    setCcGuardando(item.id)
+    const hermanos = documentosRef.current
+      .filter(d => d.tarjetaId === doc.tarjetaId).flatMap(d => d.items)
+      .filter(i => i.id !== item.id && i.monto === item.monto && (i.centroCosto ?? '').trim() === actual)
+    const r = await cargarItemTCaGespro({
+      itemId: item.id, tarjetaId: doc.tarjetaId, monto: item.monto, responsable: item.responsable,
+      descripcion: item.descripcion ?? '', fechaItem: item.fechaItem, fechaDocumento: doc.fecha,
+      centroCostoNuevo: nuevo, centroCostoActual: actual, hermanos,
+      usuarioFallback: currentUser?.nombre ?? '', proyectos,
+    })
+    setCcGuardando(null)
+    if (!r.ok) {
+      setCcMsg(m => ({ ...m, [item.id]: r.error }))
+      return false
+    }
+    patchItem(doc.id, item.id, { centroCosto: r.orden.centroCosto })
+    setCcDraft(d => { const n = { ...d }; delete n[item.id]; return n })
+    getOrdenesGespro().then(setOrdenesGespro).catch(() => {})
+    return true
+  }
 
   function handleNuevo(tarjetaId:string, ultimos4:string, fecha:string, item:ItemTC) {
     addDocumentoTC({ tarjetaId, ultimos4, fecha, items:[item], finalizado:false })
@@ -865,7 +934,16 @@ export default function TarjetaCredito() {
                             </div>
                             <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:110 }}>
                               <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Centro Costos</label>
-                              <input value={item.centroCosto} onChange={e=>patchItem(doc.id,item.id,{centroCosto:e.target.value})} placeholder="1042" style={inp}/>
+                              {puedeEditarCC ? (
+                                <input value={ccDraft[item.id] ?? item.centroCosto ?? ''} placeholder="1042" style={inp}
+                                  disabled={ccGuardando===item.id}
+                                  onChange={e=>{ setCcDraft(d=>({...d,[item.id]:e.target.value})); setCcMsg(m=>({...m,[item.id]:''})) }}
+                                  onKeyDown={async e=>{ if(e.key==='Enter'){ if(await guardarCentroCosto(doc,item)) setEditingItemId(null) } }}/>
+                              ) : (
+                                <input value={item.centroCosto ?? ''} disabled style={{ ...inp, background:'#F3F4F6', color:'#6B7280', cursor:'not-allowed' }}
+                                  title="El centro de costo lo asigna Contabilidad o Administración"/>
+                              )}
+                              {!puedeEditarCC && <span style={{ fontSize:10, color:'#9CA3AF' }}>Lo asigna Contabilidad</span>}
                             </div>
                             <div style={{ display:'flex', flexDirection:'column', gap:4, minWidth:110 }}>
                               <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Monto</label>
@@ -885,11 +963,17 @@ export default function TarjetaCredito() {
                               <label style={{ fontSize:11, fontWeight:600, color:'#374151' }}>Descripción</label>
                               <input value={item.descripcion??''} onChange={e=>patchItem(doc.id,item.id,{descripcion:e.target.value})} placeholder="Concepto..." style={inp}/>
                             </div>
-                            <button onClick={()=>setEditingItemId(null)}
-                              style={{ height:30, padding:'0 14px', border:'none', borderRadius:6, background:'#111827', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0 }}>
-                              Guardar
+                            <button disabled={ccGuardando===item.id}
+                              onClick={async()=>{ if(await guardarCentroCosto(doc,item)) setEditingItemId(null) }}
+                              style={{ height:30, padding:'0 14px', border:'none', borderRadius:6, background:'#111827', color:'#fff', fontSize:12, fontWeight:600, cursor:ccGuardando===item.id?'wait':'pointer', flexShrink:0, opacity:ccGuardando===item.id?0.6:1 }}>
+                              {ccGuardando===item.id?'Cargando a Gespro…':'Guardar'}
                             </button>
                           </div>
+                          {ccMsg[item.id] && (
+                            <div style={{ marginTop:8, padding:'8px 12px', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:6, fontSize:12, color:'#B91C1C', lineHeight:1.4 }}>
+                              {ccMsg[item.id]}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
