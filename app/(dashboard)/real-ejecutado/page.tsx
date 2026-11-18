@@ -8,7 +8,7 @@
 // asignado por fila en `PptoRow.ordenado` (tabla `presupuestos`) para que el propio
 // módulo PPTO y su exportación a Excel queden sincronizados automáticamente.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStore, type Legalizacion, type GastoLegalizacion } from '@/lib/store'
@@ -20,7 +20,7 @@ import {
   type OrdenGespro, type ProveedorGespro,
 } from '@/lib/queries/gespro'
 import {
-  getRealEjecutados, guardarRealEjecutado, uid,
+  getRealEjecutados, guardarRealEjecutado, uid, versionVigente,
   type RealEjecutado, type AsignacionGasto, type ModalidadAsignacion,
 } from '@/lib/real-ejecutado'
 
@@ -37,15 +37,10 @@ type GastoAsignable = {
   sublabel?: string
 }
 
-type Vista = 'landing' | 'seleccionVersion' | 'editor'
+type Vista = 'landing' | 'editor'
 
 function ccKey(cc: string) {
   return (cc || '').trim() || 'Sin centro de costo'
-}
-function formatFechaCorta(iso: string) {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 export default function RealEjecutadoPage() {
@@ -104,11 +99,34 @@ export default function RealEjecutadoPage() {
   function grupoDe(cc: string) {
     return grupos.find(g => g.centroCosto === ccKey(cc)) ?? null
   }
+
+  // Los Real Ejecutado nuevos acompañan a la última versión del PPTO: mientras
+  // nadie haya trabajado en uno (ver `seguirUltima`) se ve en la versión más
+  // nueva, aunque se haya creado cuando solo existía una anterior. Los que ya
+  // estaban hechos antes de este cambio no traen la marca y no se tocan.
+  const realesVigentes = useMemo(() => reales.map(re => {
+    if (!re.seguirUltima || re.asignaciones.length > 0) return re
+    const g = grupos.find(x => x.centroCosto === ccKey(re.centroCosto))
+    const vigente = g ? versionVigente(g.versions) : undefined
+    return vigente && vigente.id !== re.pptoId ? { ...re, pptoId: vigente.id } : re
+  }), [reales, grupos])
+
+  // Deja guardado en la base de datos el cambio de versión (una sola vez por cambio).
+  const versionGuardada = useRef(new Set<string>())
+  useEffect(() => {
+    if (loading) return
+    realesVigentes.forEach((re, i) => {
+      const clave = `${re.centroCosto}|${re.pptoId}`
+      if (re.pptoId === reales[i].pptoId || versionGuardada.current.has(clave)) return
+      versionGuardada.current.add(clave)
+      guardarRealEjecutado(re)
+    })
+  }, [loading, reales, realesVigentes])
+
   function realDe(cc: string) {
-    return reales.find(r => r.centroCosto === ccKey(cc)) ?? null
+    return realesVigentes.find(r => r.centroCosto === ccKey(cc)) ?? null
   }
 
-  const grupoSel = grupoDe(ccSel)
   const realSel = realDe(ccSel)
   const budgetSel = realSel ? budgets.find(b => b.id === realSel.pptoId) ?? null : null
 
@@ -255,28 +273,38 @@ export default function RealEjecutadoPage() {
 
   /* ---------- navegación ---------- */
   function volverALanding() { setVista('landing'); setCcSel(''); setAsignarRowId(null) }
-  function abrirCC(cc: string) {
-    setCcSel(ccKey(cc))
-    setVista(realDe(cc) ? 'editor' : 'seleccionVersion')
-  }
-
-  useEffect(() => {
-    if (vista === 'seleccionVersion' && !grupoSel) volverALanding()
-    if (vista === 'editor' && (!realSel || !budgetSel)) volverALanding()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista, grupoSel, realSel, budgetSel])
-
-  async function elegirVersion(pptoId: string) {
-    const re: RealEjecutado = { centroCosto: ccSel, pptoId, asignaciones: [] }
-    setReales(prev => [...prev.filter(r => r.centroCosto !== ccSel), re])
-    await guardarRealEjecutado(re)
+  async function abrirCC(cc: string) {
+    const key = ccKey(cc)
+    setCcSel(key)
+    if (!realDe(cc)) {
+      // Sin Real Ejecutado todavía: se crea con la última versión del PPTO.
+      const g = grupoDe(cc)
+      const vigente = g ? versionVigente(g.versions) : undefined
+      if (!vigente) return
+      const re: RealEjecutado = { centroCosto: key, pptoId: vigente.id, asignaciones: [], seguirUltima: true }
+      setReales(prev => [...prev.filter(r => r.centroCosto !== key), re])
+      await guardarRealEjecutado(re)
+    }
     setVista('editor')
   }
 
+  useEffect(() => {
+    if (vista === 'editor' && (!realSel || !budgetSel)) volverALanding()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista, realSel, budgetSel])
+
   /* ---------- asignar / quitar gastos ---------- */
   async function persistirReal(re: RealEjecutado) {
-    setReales(prev => [...prev.filter(r => r.centroCosto !== re.centroCosto), re])
-    await guardarRealEjecutado(re)
+    // Cualquier cambio hecho desde el editor deja fija la versión (ver `seguirUltima`).
+    const fijo = re.seguirUltima ? { ...re, seguirUltima: false } : re
+    setReales(prev => [...prev.filter(r => r.centroCosto !== fijo.centroCosto), fijo])
+    await guardarRealEjecutado(fijo)
+  }
+
+  // Editar el PPTO desde aquí (filas, filas adicionales) también cuenta como
+  // trabajo sobre esa versión, aunque no se haya asignado ningún gasto.
+  async function fijarVersion() {
+    if (realSel?.seguirUltima) await persistirReal(realSel)
   }
 
   async function actualizarOrdenadoFila(budget: PptoBudget, rowId: string, nuevoTotal: number) {
@@ -307,6 +335,7 @@ export default function RealEjecutadoPage() {
   /* ---------- filas adicionales (gasto real que no estaba en el PPTO inicial) ---------- */
   async function actualizarFila(rowId: string, patch: Partial<PptoRow>) {
     if (!budgetSel) return
+    await fijarVersion()
     const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.map(r => r.id === rowId ? { ...r, ...patch } : r) }
     setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
     await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
@@ -314,6 +343,7 @@ export default function RealEjecutadoPage() {
 
   async function agregarFilaAdicional() {
     if (!budgetSel) return
+    await fijarVersion()
     const nueva: PptoRow = { ...mkRow('ADICIONALES', '', 0, 1, 1, 0, 0, ''), adicional: true }
     const actualizado: PptoBudget = { ...budgetSel, rows: [...budgetSel.rows, nueva] }
     setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
@@ -322,6 +352,7 @@ export default function RealEjecutadoPage() {
 
   async function eliminarFilaAdicional(rowId: string) {
     if (!budgetSel) return
+    await fijarVersion()
     const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.filter(r => r.id !== rowId) }
     setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
     await supabase.from('presupuestos').update({ data: actualizado }).eq('id', actualizado.id)
@@ -367,45 +398,13 @@ export default function RealEjecutadoPage() {
                     <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
                     {version
                       ? <span className="ccbadge ok">Configurado · V{version.version}</span>
-                      : <span className="ccbadge pend">Falta elegir versión</span>}
+                      : <span className="ccbadge pend">Sin iniciar</span>}
                   </button>
                 )
               })}
             </div>
           </>
         )}
-      </div>
-    )
-  }
-
-  /* ==================== SELECCIÓN DE VERSIÓN ==================== */
-  if (vista === 'seleccionVersion') {
-    if (!grupoSel) return <div className="realej"><Styles /></div>
-    return (
-      <div className="realej">
-        <Styles />
-        <div className="breadcrumb"><button onClick={volverALanding}>Real Ejecutado</button> / {grupoSel.centroCosto}</div>
-        <div className="pheader">
-          <div>
-            <h1>{grupoSel.latest.evento || 'Sin nombre'}</h1>
-            <p>{grupoSel.latest.cliente || '—'} · Selecciona cuál versión del PPTO fue la que se vendió.</p>
-          </div>
-        </div>
-        <div className="vlist">
-          {grupoSel.versions.map(v => {
-            const t = calcTotals(v)
-            return (
-              <button key={v.id} className="vcard" onClick={() => elegirVersion(v.id)}>
-                <div className="vnum">V{v.version}</div>
-                <div className="vinfo">
-                  <div className="vevento">{v.evento || 'Sin nombre'}</div>
-                  <div className="vfecha">Guardado {formatFechaCorta(v.createdAt)}</div>
-                </div>
-                <div className="vtotal">{money(t.totalAntesIva)}</div>
-              </button>
-            )
-          })}
-        </div>
       </div>
     )
   }
@@ -636,14 +635,6 @@ function Styles() {
 .realej .ccbadge{flex-shrink:0;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap;min-width:170px;text-align:center}
 .realej .ccbadge.ok{color:#065F46;background:#ECFDF5}
 .realej .ccbadge.pend{color:#92400E;background:#FFFBEB}
-.realej .vlist{display:flex;flex-direction:column;gap:10px}
-.realej .vcard{display:flex;align-items:center;gap:16px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:10px;padding:14px 16px;cursor:pointer;font:inherit;width:100%}
-.realej .vcard:hover{border-color:#0e7a52}
-.realej .vnum{font-size:13px;font-weight:700;color:#fff;background:#0e7a52;border-radius:6px;padding:4px 10px;flex-shrink:0}
-.realej .vinfo{flex:1}
-.realej .vevento{font-size:14px;font-weight:600;color:#191c19}
-.realej .vfecha{font-size:12px;color:#6d746c;margin-top:2px}
-.realej .vtotal{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:14px;font-weight:700;color:#191c19}
 .realej .gridwrap{overflow-x:auto;background:#fff;border:1px solid #dde1d8;border-radius:12px;margin-bottom:14px}
 .realej table{border-collapse:collapse;width:100%;min-width:1250px}
 .realej th{position:sticky;top:0;background:#5b9bd5;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:10px 8px;border-bottom:2px solid #4a86ba;white-space:nowrap}
