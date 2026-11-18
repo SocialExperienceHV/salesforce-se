@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Folder, DollarSign, ShoppingCart, XCircle, Target, ChevronLeft, ChevronRight, Search, MoreHorizontal, X, TrendingUp, Pencil, Check, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 import type { Proyecto } from '@/lib/store'
 import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
 
@@ -296,7 +296,7 @@ export default function SeguimientoPage() {
   }
 
   const clientesFiltro = ['Todos', ...clientesStore.map(c => c.nombre).sort((a, b) => a.localeCompare(b, 'es'))]
-  const ejecutivosFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
+  const ejecutivosFiltro = ['Todos', ...personasStore.filter(esKam).map(p => p.nombre)]
   const estadosFiltro = ['Todos', 'En propuesta', 'En negociación', 'Vendido', 'Perdido']
 
   function navPeriodo(dir: 1 | -1) {

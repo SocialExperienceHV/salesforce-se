@@ -66,6 +66,13 @@ export type PersonaStore = {
   jefe?: string
 }
 
+// KAM = persona con cargo (o permiso) KAM. No es lo mismo que el área Comercial:
+// ahí también hay gente del equipo comercial que no es KAM y no debe salir en
+// los selectores ni en los filtros de KAM.
+export function esKam(p: Pick<PersonaStore, 'cargo' | 'permiso'>): boolean {
+  return p.cargo === 'KAM' || p.permiso === 'KAM'
+}
+
 export type ContactoCliente = {
   id: string
   area: string

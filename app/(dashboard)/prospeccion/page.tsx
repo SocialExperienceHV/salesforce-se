@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Users, UserPlus, Mail, FileText, CheckCircle, XCircle, Plus, Search, RefreshCw, Download, ChevronDown, ChevronUp, ChevronsUpDown, Pencil } from 'lucide-react'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 import type { Prospecto } from '@/lib/store'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ function EditarProspectoModal({ prospecto, onClose, kams }: { prospecto: Prospec
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProspeccionPage() {
   const { prospectos, updateProspecto, personasStore } = useStore()
-  const kams = useMemo(() => personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre), [personasStore])
+  const kams = useMemo(() => personasStore.filter(esKam).map(p => p.nombre), [personasStore])
 
   const [search, setSearch] = useState('')
   const [filtroFase, setFiltroFase] = useState('Todos')

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 import type { Cliente, ContactoCliente } from '@/lib/store'
 
 const COLORES = ['#16a34a','#e53935','#2563eb','#f97316','#7c3aed','#dc2626','#0284c7','#ca8a04','#c62828','#059669','#d97706','#6366f1']
@@ -520,7 +520,7 @@ function EditarClienteModal({ cliente, onClose, onSave, kams }: {
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ClientesPage() {
   const { clientes, addCliente, updateCliente, proyectos, personasStore } = useStore()
-  const kams = useMemo(() => personasStore.filter(p => p.permiso === 'KAM' || p.cargo === 'KAM').map(p => p.nombre), [personasStore])
+  const kams = useMemo(() => personasStore.filter(esKam).map(p => p.nombre), [personasStore])
   const [search, setSearch] = useState('')
   const [ejecutivo, setEjecutivo] = useState('Todos')
   const [estado, setEstado] = useState('Todos')

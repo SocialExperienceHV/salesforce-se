@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 const tiposProyecto = ['Evento 360', 'Logística', 'Activación', 'Experiencias', 'Convención', 'Escenografía/Feria', 'Técnica', 'Litografía', 'Digital', 'Estrategia', 'Otros']
 
 const meses = [
@@ -21,8 +21,8 @@ export default function NuevoProyectoPage() {
   const { addProyecto, clientes: clientesStore, personasStore } = useStore()
   const clientesOrdenados = [...clientesStore].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  // Solo personas del área Comercial (KAMs)
-  const kams = personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)
+  // Solo los KAM (cargo KAM)
+  const kams = personasStore.filter(esKam).map(p => p.nombre)
   const [cliente, setCliente] = useState('')
   const [subcliente, setSubcliente] = useState('')
   const [ejecutivo, setEjecutivo] = useState('')

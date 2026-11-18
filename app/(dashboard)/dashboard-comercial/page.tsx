@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Target, DollarSign, TrendingUp, Percent, Users, Pencil, X, ChevronUp, ChevronDown, ChevronsUpDown, Archive, Search, RotateCcw, Gauge } from 'lucide-react'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 import type { Proyecto, MetaComercial, MetaKam, Cliente } from '@/lib/store'
 import { getOrdenesGespro, type OrdenGespro } from '@/lib/queries/gespro'
 
@@ -291,7 +291,7 @@ export default function DashboardComercialPage() {
     else { setSortColKam(col); setSortDirKam('desc') }
   }
 
-  const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
+  const kamsFiltro = ['Todos', ...personasStore.filter(esKam).map(p => p.nombre)]
   const clientesFiltroOpts = ['Todos', ...clientesStore.filter(c => !c.inactivoComercial).map(c => c.nombre).sort((a, b) => a.localeCompare(b, 'es'))]
   const mesesFiltro = ['Todos', ...MESES_ES]
   const clientesInactivos = useMemo(() => clientesStore.filter(c => c.inactivoComercial), [clientesStore])
@@ -410,7 +410,7 @@ export default function DashboardComercialPage() {
   // cuentas que tiene asignadas dentro del filtro actual.
   const filasKam = useMemo(() => {
     const nombresKam = kam === 'Todos'
-      ? Array.from(new Set(personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)))
+      ? Array.from(new Set(personasStore.filter(esKam).map(p => p.nombre)))
       : [kam]
     return nombresKam.map(nombreKam => {
       const clientesDelKam = filas.filter(f => f.cliente.ejecutivo === nombreKam)

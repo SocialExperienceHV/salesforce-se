@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { useStore } from '@/lib/store'
+import { useStore, esKam } from '@/lib/store'
 import type { Proyecto } from '@/lib/store'
 
 function clienteColor(nombre: string, clientes: { nombre: string; color: string }[]) {
@@ -384,7 +384,7 @@ export default function ProyectosPage() {
   }
 
   const clientesFiltro = ['Todos', ...clientesOrdenados.map(c => c.nombre)]
-  const kamsFiltro = ['Todos', ...personasStore.filter(p => p.area === 'Comercial').map(p => p.nombre)]
+  const kamsFiltro = ['Todos', ...personasStore.filter(esKam).map(p => p.nombre)]
   const aniosFiltro = ['Todos', ...Array.from(new Set(proyectos.map(anioDeProyecto).filter((y): y is number => y !== null))).sort((a, b) => b - a).map(String)]
   const mesesFiltro = ['Todos', ...MESES.map(m => `${m} ${anio === 'Todos' ? new Date().getFullYear() : anio}`)]
 
