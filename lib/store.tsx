@@ -365,8 +365,16 @@ async function sbUpsertOverride(key: string, data: unknown) {
 // el mismo centro de costo (pasó con los CC 1815 y 1822). Devuelve null si no
 // logra reservarlo tras varios intentos (p.ej. la tabla aún no existe), para
 // que quien llama pueda recurrir al cálculo local como respaldo.
+//
+// El contador solo conoce su propio valor, pero el CC de un proyecto también se
+// puede escribir a mano en la ficha. Por eso, una vez reservado el número, se
+// comprueba que ningún proyecto ya lo tenga: si está en uso (pasó con el 1942,
+// que ya era de OPEN MIND PE cuando el contador lo entregó a FEE NOVIEMBRE) se
+// descarta y se reserva el siguiente. Si esa consulta falla no se bloquea la
+// creación: se entrega el número como antes.
 async function reservarSiguienteCentroCosto(): Promise<string | null> {
-  for (let intento = 0; intento < 8; intento++) {
+  let carreras = 0
+  for (let intento = 0; intento < 60 && carreras < 8; intento++) {
     const { data } = await supabase.from('centro_costo_counter').select('data').eq('id', 'actual').maybeSingle()
     const actual = (data?.data as { valor?: number } | null)?.valor ?? 1799
     const siguiente = actual + 1
@@ -376,8 +384,18 @@ async function reservarSiguienteCentroCosto(): Promise<string | null> {
       .eq('id', 'actual')
       .eq('data->>valor', String(actual))
       .select('id')
-    if (!error && updated && updated.length > 0) return String(siguiente)
-    // Otra creación ganó la carrera justo en este instante: reintenta con el valor fresco.
+    if (error || !updated || updated.length === 0) {
+      // Otra creación ganó la carrera justo en este instante: reintenta con el valor fresco.
+      carreras++
+      continue
+    }
+    const { data: enUso, error: errorUso } = await supabase
+      .from('proyectos')
+      .select('id')
+      .eq('data->>centroCosto', String(siguiente))
+      .limit(1)
+    if (errorUso || !enUso || enUso.length === 0) return String(siguiente)
+    // Ya lo tiene un proyecto: el contador ya lo pasó, se sigue con el siguiente.
   }
   return null
 }
