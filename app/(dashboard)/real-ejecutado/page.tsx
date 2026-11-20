@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStore, type Legalizacion, type GastoLegalizacion } from '@/lib/store'
 import {
-  type PptoBudget, type PptoRow, fmt, money, calcTotals, calcRow, utilColor, mkRow, parseNum,
+  type PptoBudget, type PptoRow, fmt, money, calcTotals, calcRow, utilColor, mkRow,
 } from '@/lib/ppto/calculations'
 import {
   getOrdenesGespro, getProveedoresGespro, nombreProveedorGespro,
@@ -460,7 +460,15 @@ export default function RealEjecutadoPage() {
   const ordenadoAsignado = budgetSel.rows.reduce(
     (s, r) => s + totalValido(realSel.asignaciones.filter(a => a.rowId === r.id)), 0,
   )
-  const t = { ...calcTotals(budgetSel), ordenado: ordenadoAsignado }
+  // Las filas adicionales (gasto que no estaba en el PPTO) son solo gasto: nunca
+  // suman a la venta. Se ignora su venta unidad aunque el documento guarde un
+  // valor (antes se podía escribir uno en esta pantalla), así el Subtotal, el
+  // Total antes de IVA y la utilidad real solo cuentan la venta del PPTO real.
+  const presupuestoSoloVenta: PptoBudget = {
+    ...budgetSel,
+    rows: budgetSel.rows.map(r => r.adicional ? { ...r, costoUnd: 0 } : r),
+  }
+  const t = { ...calcTotals(presupuestoSoloVenta), ordenado: ordenadoAsignado }
   // La utilidad real del módulo debe descontar TODO el gasto real: lo asignado
   // fila por fila (t.ordenado, que ya incluye cualquier tarjeta/anticipo que se
   // haya clasificado en un rubro) + lo que de tarjeta/anticipos SIGUE sin
@@ -513,22 +521,11 @@ export default function RealEjecutadoPage() {
                       ? <input className="in-inline" placeholder="Descripción del gasto" value={r.item} onChange={e => actualizarFila(r.id, { item: e.target.value })} />
                       : r.item}
                   </td>
-                  <td className="r">
-                    {r.adicional
-                      ? <input className="in-inline r" placeholder="0" value={r.costoUnd || ''} onChange={e => actualizarFila(r.id, { costoUnd: parseNum(e.target.value) })} />
-                      : fmt(r.costoUnd)}
-                  </td>
-                  <td className="r">
-                    {r.adicional
-                      ? <input className="in-inline r small" value={r.cant || ''} onChange={e => actualizarFila(r.id, { cant: parseNum(e.target.value) })} />
-                      : r.cant}
-                  </td>
-                  <td className="r">
-                    {r.adicional
-                      ? <input className="in-inline r small" value={r.dias || ''} onChange={e => actualizarFila(r.id, { dias: parseNum(e.target.value) })} />
-                      : r.dias}
-                  </td>
-                  <td className="r calc dim">{fmt(c.costoTotal)}</td>
+                  {/* Una fila adicional es solo gasto: no tiene venta unidad, cantidad ni días. */}
+                  <td className="r">{r.adicional ? '—' : fmt(r.costoUnd)}</td>
+                  <td className="r">{r.adicional ? '—' : r.cant}</td>
+                  <td className="r">{r.adicional ? '—' : r.dias}</td>
+                  <td className="r calc dim">{r.adicional ? '—' : fmt(c.costoTotal)}</td>
                   <td className="r calc">{c.costoRealTotal ? fmt(c.costoRealTotal) : '—'}</td>
                   <td className="ordenadocell">
                     <div className="ordenadototal">{fmt(totalFila)}</div>

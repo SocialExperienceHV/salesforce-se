@@ -156,8 +156,10 @@ export default function PptoPage() {
       return next
     })
   }
+  // Una fila adicional (gasto agregado desde Real Ejecutado) es solo gasto: su
+  // venta unidad se mantiene siempre en 0, se intente escribir lo que se escriba.
   const setRow = (rowId: string, patch: Partial<PptoRow>) =>
-    mutateActive(b => ({ ...b, rows: b.rows.map(r => r.id === rowId ? { ...r, ...patch } : r) }))
+    mutateActive(b => ({ ...b, rows: b.rows.map(r => r.id === rowId ? { ...r, ...patch, ...(r.adicional ? { costoUnd: 0 } : {}) } : r) }))
   const addRow = () => mutateActive(b => {
     const lastP = b.rows.length ? b.rows[b.rows.length - 1].proceso : ''
     return { ...b, rows: [...b.rows, mkRow(lastP, '', 0, 1, 1, 0, 0, '')] }
@@ -556,7 +558,7 @@ export default function PptoPage() {
                     onDrop={e => { e.preventDefault(); if (dragId && dragId !== r.id) reorder(dragId, r.id); setDragId(null); setDragOverId(null) }}>
                     <td className="col-proc"><input className="in edit" value={r.proceso} placeholder="PROCESO" onChange={e => setRow(r.id, { proceso: e.target.value })} /></td>
                     <td className="col-item"><input className="in edit" value={r.item} placeholder="Descripción del ítem" onChange={e => setRow(r.id, { item: e.target.value })} /></td>
-                    <td className="r col-money"><input className="in num edit" inputMode="numeric" value={r.costoUnd ? fmt(r.costoUnd) : ''} placeholder="0" onChange={e => setRow(r.id, { costoUnd: parseNum(e.target.value) })} /></td>
+                    <td className="r col-money"><input className="in num edit" inputMode="numeric" value={r.costoUnd ? fmt(r.costoUnd) : ''} placeholder={r.adicional ? '—' : '0'} disabled={r.adicional} title={r.adicional ? 'Fila adicional: es solo gasto, no tiene venta' : undefined} onChange={e => setRow(r.id, { costoUnd: parseNum(e.target.value) })} /></td>
                     <td className="r"><input className="in num edit small" inputMode="numeric" value={r.cant || ''} placeholder="0" onChange={e => setRow(r.id, { cant: parseNum(e.target.value) })} /></td>
                     <td className="r"><input className="in num edit small" inputMode="numeric" value={r.dias || ''} placeholder="0" onChange={e => setRow(r.id, { dias: parseNum(e.target.value) })} /></td>
                     <td className="r calc">{c.costoTotal ? fmt(c.costoTotal) : '—'}</td>
