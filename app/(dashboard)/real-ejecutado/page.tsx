@@ -555,7 +555,7 @@ export default function RealEjecutadoPage() {
           )}
           <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
           <div className="kv" title="Todas las órdenes de compra del centro de costo en Gespro, estén o no ya asignadas a una fila">
-            <span>Total Gespro</span>
+            <span>Órdenes de compra</span>
             <span className="num" style={{ color: totalGespro !== t.ordenado ? '#b3261e' : undefined }}>{money(totalGespro)}</span>
           </div>
           <div className="kv total"><span>Utilidad real</span><span className="num">{money(utilRealCompleta)}</span></div>
