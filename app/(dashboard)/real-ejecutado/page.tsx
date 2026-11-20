@@ -43,6 +43,11 @@ function ccKey(cc: string) {
   return (cc || '').trim() || 'Sin centro de costo'
 }
 
+// Para buscar sin que importen mayúsculas ni tildes ("MEDELLÍN" = "medellin").
+function sinTildes(s: string) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
 export default function RealEjecutadoPage() {
   const { tarjetasCorp, proyectos, legalizaciones } = useStore()
   const [budgets, setBudgets] = useState<PptoBudget[]>([])
@@ -55,6 +60,7 @@ export default function RealEjecutadoPage() {
   const [ccSel, setCcSel] = useState('')
   const [asignarRowId, setAsignarRowId] = useState<string | null>(null)
   const [montoInputs, setMontoInputs] = useState<Record<string, string>>({})
+  const [busqueda, setBusqueda] = useState('')
 
   /* ---------- carga inicial ---------- */
   useEffect(() => {
@@ -95,6 +101,18 @@ export default function RealEjecutadoPage() {
       return nb - na
     })
   }, [budgets])
+
+  // Buscador de la lista: por número de centro de costo, nombre del proyecto o
+  // cliente. Cada palabra escrita debe aparecer en alguno de los tres (así
+  // "1942 open" o "falabella photo" también funcionan).
+  const gruposFiltrados = useMemo(() => {
+    const palabras = sinTildes(busqueda).split(/\s+/).filter(Boolean)
+    if (palabras.length === 0) return grupos
+    return grupos.filter(g => {
+      const texto = sinTildes(`${g.centroCosto} ${g.latest.evento ?? ''} ${g.latest.cliente ?? ''}`)
+      return palabras.every(p => texto.includes(p))
+    })
+  }, [grupos, busqueda])
 
   function grupoDe(cc: string) {
     return grupos.find(g => g.centroCosto === ccKey(cc)) ?? null
@@ -381,28 +399,50 @@ export default function RealEjecutadoPage() {
           <div className="empty">No hay presupuestos en PPTO todavía. <Link href="/ppto">Crea uno primero.</Link></div>
         ) : (
           <>
-            <div className="cclistheader">
-              <div className="ccf-cc">Centro de costo</div>
-              <div className="ccf-proy">Proyecto</div>
-              <div className="ccf-cli">Cliente</div>
-              <div className="ccheadbadge">Estado</div>
+            <div className="busquedafila">
+              <div className="buscador">
+                <svg className="buscadorico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input
+                  type="text"
+                  value={busqueda}
+                  onChange={e => setBusqueda(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') setBusqueda('') }}
+                  placeholder="Buscar por centro de costo o nombre…"
+                  aria-label="Buscar centro de costo"
+                  autoComplete="off"
+                />
+                {busqueda && <button className="buscadorx" onClick={() => setBusqueda('')} title="Borrar búsqueda" aria-label="Borrar búsqueda">✕</button>}
+              </div>
+              {busqueda.trim() && <span className="buscadorcuenta">{gruposFiltrados.length} de {grupos.length}</span>}
             </div>
-            <div className="cclist">
-              {grupos.map(g => {
-                const re = realDe(g.centroCosto)
-                const version = re ? g.versions.find(v => v.id === re.pptoId) : null
-                return (
-                  <button key={g.centroCosto} className="cccard" onClick={() => abrirCC(g.centroCosto)}>
-                    <span className="ccnum ccf-cc">{g.centroCosto}</span>
-                    <span className="ccevento ccf-proy">{g.latest.evento || 'Sin nombre'}</span>
-                    <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
-                    {version
-                      ? <span className="ccbadge ok">Configurado · V{version.version}</span>
-                      : <span className="ccbadge pend">Sin iniciar</span>}
-                  </button>
-                )
-              })}
-            </div>
+            {gruposFiltrados.length === 0 ? (
+              <div className="empty">No hay centros de costo que coincidan con “{busqueda.trim()}”.</div>
+            ) : (
+              <>
+                <div className="cclistheader">
+                  <div className="ccf-cc">Centro de costo</div>
+                  <div className="ccf-proy">Proyecto</div>
+                  <div className="ccf-cli">Cliente</div>
+                  <div className="ccheadbadge">Estado</div>
+                </div>
+                <div className="cclist">
+                  {gruposFiltrados.map(g => {
+                    const re = realDe(g.centroCosto)
+                    const version = re ? g.versions.find(v => v.id === re.pptoId) : null
+                    return (
+                      <button key={g.centroCosto} className="cccard" onClick={() => abrirCC(g.centroCosto)}>
+                        <span className="ccnum ccf-cc">{g.centroCosto}</span>
+                        <span className="ccevento ccf-proy">{g.latest.evento || 'Sin nombre'}</span>
+                        <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
+                        {version
+                          ? <span className="ccbadge ok">Configurado · V{version.version}</span>
+                          : <span className="ccbadge pend">Sin iniciar</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -629,6 +669,15 @@ function Styles() {
 .realej .breadcrumb button:hover{text-decoration:underline}
 .realej .empty{background:#fff;border:1px dashed #c8cdc2;border-radius:12px;padding:40px 20px;text-align:center;color:#9aa398;font-size:14px}
 .realej .empty a{color:#1d4ed8}
+.realej .busquedafila{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.realej .buscador{position:relative;flex:0 1 420px;min-width:0}
+.realej .buscador input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;color:#191c19;background:#fff;border:1px solid #dde1d8;border-radius:10px;padding:10px 34px 10px 36px;outline:none}
+.realej .buscador input::placeholder{color:#9aa398}
+.realej .buscador input:focus{border-color:#0e7a52;box-shadow:0 0 0 3px rgba(14,122,82,.12)}
+.realej .buscadorico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#9aa398;pointer-events:none}
+.realej .buscadorx{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;color:#9aa398;cursor:pointer;font-size:13px;line-height:1;padding:6px}
+.realej .buscadorx:hover{color:#191c19}
+.realej .buscadorcuenta{font-size:13px;color:#6d746c;white-space:nowrap}
 .realej .cclistheader{display:flex;align-items:center;gap:28px;padding:0 18px;margin-bottom:8px}
 .realej .cclistheader>div{font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em}
 .realej .ccheadbadge{flex-shrink:0;font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em;min-width:170px;text-align:right}
