@@ -411,7 +411,16 @@ export default function RealEjecutadoPage() {
 
   /* ==================== EDITOR ==================== */
   if (!realSel || !budgetSel) return <div className="realej"><Styles /></div>
-  const t = calcTotals(budgetSel)
+  // El "ordenado" se suma aquí a partir de los gastos asignados (lo mismo que
+  // se ve fila por fila en "Costo real (ordenado)"), no del valor `ordenado`
+  // guardado en cada fila del documento del PPTO: ese valor se reescribe en
+  // cada asignación y puede quedar desfasado. En el 1861 dos filas conservaban
+  // 250.000 y 150.000 de gastos ya movidos a otra fila, y el total salía
+  // $400.000 por encima de la suma de la columna (y la utilidad real, por debajo).
+  const ordenadoAsignado = budgetSel.rows.reduce(
+    (s, r) => s + totalValido(realSel.asignaciones.filter(a => a.rowId === r.id)), 0,
+  )
+  const t = { ...calcTotals(budgetSel), ordenado: ordenadoAsignado }
   // La utilidad real del módulo debe descontar TODO el gasto real: lo asignado
   // fila por fila (t.ordenado, que ya incluye cualquier tarjeta/anticipo que se
   // haya clasificado en un rubro) + lo que de tarjeta/anticipos SIGUE sin
@@ -553,11 +562,11 @@ export default function RealEjecutadoPage() {
               <span>↳ sin asignar a un rubro</span><span className="num" style={{ color: '#b3261e' }}>{money(anticipoPendiente)}</span>
             </div>
           )}
-          <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
           <div className="kv" title="Todas las órdenes de compra del centro de costo en Gespro, estén o no ya asignadas a una fila">
             <span>Órdenes de compra</span>
             <span className="num" style={{ color: totalGespro !== t.ordenado ? '#b3261e' : undefined }}>{money(totalGespro)}</span>
           </div>
+          <div className="kv"><span>Total ordenado</span><span className="num">{money(t.ordenado)}</span></div>
           <div className="kv total"><span>Utilidad real</span><span className="num">{money(utilRealCompleta)}</span></div>
           <div className="bigpct num" style={{ color: utilColor(pctRealCompleto) }}>{isFinite(pctRealCompleto) ? (pctRealCompleto * 100).toFixed(1).replace('.', ',') + ' %' : '—'}</div>
           <div className="bar"><i style={{ width: Math.max(0, Math.min(100, (pctRealCompleto || 0) * 100)) + '%', background: utilColor(pctRealCompleto) }}></i></div>
