@@ -33,6 +33,24 @@ export type RealEjecutado = {
   // cambio pasa a false y la versión queda fija. Los anteriores no la traen
   // (undefined) y nunca cambian de versión solos.
   seguirUltima?: boolean
+  // Real ejecutado revisado y dado por bueno por alguien con permiso para ello
+  // (ver puedeFinalizarRealEjecutado). Mientras exista queda bloqueado: no se
+  // asignan ni quitan gastos ni se editan filas hasta que se reabra.
+  finalizado?: { por: string; fecha: string }
+  // Quién finalizó y quién reabrió, en orden cronológico.
+  historial?: EventoFinalizacion[]
+}
+
+export type EventoFinalizacion = {
+  accion: 'finalizado' | 'reabierto'
+  por: string
+  fecha: string
+}
+
+// Quién puede marcar o desmarcar un Real Ejecutado como finalizado: el Líder
+// de Producción (Francisco) y los Super Admin (Felipe y Hans).
+export function puedeFinalizarRealEjecutado(permiso: string | undefined): boolean {
+  return permiso === 'Super Admin' || permiso === 'Líder Producción'
 }
 
 // Versión del PPTO que debe usar un Real Ejecutado nuevo: la de mayor número

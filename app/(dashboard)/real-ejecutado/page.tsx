@@ -20,7 +20,7 @@ import {
   type OrdenGespro, type ProveedorGespro,
 } from '@/lib/queries/gespro'
 import {
-  getRealEjecutados, guardarRealEjecutado, uid, versionVigente,
+  getRealEjecutados, guardarRealEjecutado, uid, versionVigente, puedeFinalizarRealEjecutado,
   type RealEjecutado, type AsignacionGasto, type ModalidadAsignacion,
 } from '@/lib/real-ejecutado'
 
@@ -48,8 +48,20 @@ function sinTildes(s: string) {
   return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
+type FiltroFin = 'todos' | 'pendientes' | 'finalizados'
+
+type GastoSinAsignar = { id: string; nombre: string; saldo: number }
+
+// ¿Queda algo por asignar de un gasto? Hay que asignar cuando el saldo sigue teniendo
+// el mismo signo que el gasto (positivo = costo; negativo = devolución o crédito que
+// resta). Un saldo de signo contrario sería haber asignado de más: eso no es "sin asignar".
+const hayPorAsignar = (valor: number, saldo: number) => Math.abs(saldo) >= 1 && Math.sign(saldo) === Math.sign(valor)
+
+const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+const fechaLarga = (iso: string) => new Date(iso).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+
 export default function RealEjecutadoPage() {
-  const { tarjetasCorp, proyectos, legalizaciones } = useStore()
+  const { tarjetasCorp, proyectos, legalizaciones, currentUser } = useStore()
   const [budgets, setBudgets] = useState<PptoBudget[]>([])
   const [reales, setReales] = useState<RealEjecutado[]>([])
   const [ordenes, setOrdenes] = useState<OrdenGespro[]>([])
@@ -61,6 +73,9 @@ export default function RealEjecutadoPage() {
   const [asignarRowId, setAsignarRowId] = useState<string | null>(null)
   const [montoInputs, setMontoInputs] = useState<Record<string, string>>({})
   const [busqueda, setBusqueda] = useState('')
+  const [filtroFin, setFiltroFin] = useState<FiltroFin>('todos')
+  const [confirmFin, setConfirmFin] = useState<{ cc: string; accion: 'finalizar' | 'reabrir' } | null>(null)
+  const [guardandoFin, setGuardandoFin] = useState(false)
 
   /* ---------- carga inicial ---------- */
   useEffect(() => {
@@ -105,14 +120,22 @@ export default function RealEjecutadoPage() {
   // Buscador de la lista: por número de centro de costo, nombre del proyecto o
   // cliente. Cada palabra escrita debe aparecer en alguno de los tres (así
   // "1942 open" o "falabella photo" también funcionan).
+  // También se puede filtrar por Real Ejecutado finalizado / pendiente.
+  const centrosFinalizados = useMemo(
+    () => new Set(reales.filter(r => r.finalizado).map(r => r.centroCosto)),
+    [reales],
+  )
   const gruposFiltrados = useMemo(() => {
     const palabras = sinTildes(busqueda).split(/\s+/).filter(Boolean)
-    if (palabras.length === 0) return grupos
     return grupos.filter(g => {
+      const fin = centrosFinalizados.has(g.centroCosto)
+      if (filtroFin === 'finalizados' && !fin) return false
+      if (filtroFin === 'pendientes' && fin) return false
+      if (palabras.length === 0) return true
       const texto = sinTildes(`${g.centroCosto} ${g.latest.evento ?? ''} ${g.latest.cliente ?? ''}`)
       return palabras.every(p => texto.includes(p))
     })
-  }, [grupos, busqueda])
+  }, [grupos, busqueda, filtroFin, centrosFinalizados])
 
   function grupoDe(cc: string) {
     return grupos.find(g => g.centroCosto === ccKey(cc)) ?? null
@@ -147,6 +170,9 @@ export default function RealEjecutadoPage() {
 
   const realSel = realDe(ccSel)
   const budgetSel = realSel ? budgets.find(b => b.id === realSel.pptoId) ?? null : null
+  // Un Real Ejecutado finalizado queda bloqueado hasta que alguien con permiso lo reabra.
+  const bloqueado = !!realSel?.finalizado
+  const puedeFinalizar = puedeFinalizarRealEjecutado(currentUser?.permiso)
 
   /* ---------- gastos de Gespro para el centro de costo activo ---------- */
   // Se relaciona por proyectoId (fuente confiable) y no solo por el centroCosto guardado
@@ -239,11 +265,11 @@ export default function RealEjecutadoPage() {
     const list: GastoAsignable[] = []
     gastosCC.forEach(o => {
       const saldo = saldoDeId(o.id, o.valor)
-      if (saldo > 0) list.push({ id: o.id, modalidad: o.modalidad, valor: o.valor, label: nombreGasto(o) })
+      if (hayPorAsignar(o.valor, saldo)) list.push({ id: o.id, modalidad: o.modalidad, valor: o.valor, label: nombreGasto(o) })
     })
     gastosLegalizacionCC.forEach(({ gasto, leg }) => {
       const saldo = saldoDeId(gasto.id, gasto.total)
-      if (saldo > 0) {
+      if (hayPorAsignar(gasto.total, saldo)) {
         list.push({
           id: gasto.id, modalidad: 'Legalización', valor: gasto.total,
           label: nombreGastoLegalizacion(gasto), sublabel: `${leg.responsable} · ${leg.codigo}`,
@@ -289,6 +315,72 @@ export default function RealEjecutadoPage() {
   const tarjetaPendiente = totalTarjeta - tarjetaAsignada
   const anticipoPendiente = totalAnticipos - anticipoGesproAsignado - legalizacionAsignada
 
+  /* ---------- finalizar / reabrir un Real Ejecutado ---------- */
+  // Gastos de un centro de costo (de Gespro y de Legalizaciones) que todavía no
+  // están asignados del todo a una fila del presupuesto. Para finalizar un Real
+  // Ejecutado no puede quedar ninguno. Un gasto negativo (devolución o crédito)
+  // también cuenta: tiene que asignarse a una fila para que reste del costo.
+  function gastosSinAsignarDe(cc: string): GastoSinAsignar[] {
+    const key = ccKey(cc)
+    const asignaciones = realDe(key)?.asignaciones ?? []
+    const asignadoA = (id: string) => asignaciones.filter(a => a.gastoId === id).reduce((s, a) => s + a.monto, 0)
+    const idsProyecto = new Set(proyectos.filter(p => ccKey(p.centroCosto || '') === key).map(p => p.id))
+    const out: GastoSinAsignar[] = []
+    ordenes
+      .filter(o => idsProyecto.has(o.proyectoId) || ccKey(o.centroCosto) === key)
+      .forEach(o => {
+        const saldo = o.valor - asignadoA(o.id)
+        if (!hayPorAsignar(o.valor, saldo)) return
+        out.push({
+          id: o.id, saldo,
+          nombre: `${o.modalidad || 'Gasto'} · ${nombreGasto(o, false)}${o.descripcion?.trim() ? ` — ${o.descripcion.trim()}` : ''}`,
+        })
+      })
+    legalizaciones.forEach(l => gastosLegalizacionDeCC(l, key).forEach(g => {
+      const saldo = (g.total ?? 0) - asignadoA(g.id)
+      if (!hayPorAsignar(g.total ?? 0, saldo)) return
+      out.push({ id: g.id, saldo, nombre: `Legalización · ${nombreGastoLegalizacion(g)} (${l.codigo})` })
+    }))
+    return out
+  }
+
+  async function aplicarFinalizacion(cc: string, accion: 'finalizar' | 'reabrir') {
+    if (!puedeFinalizar || !currentUser) return
+    const key = ccKey(cc)
+    // No se puede finalizar con gastos sin asignar (la ventana ya lo avisa; esto es un respaldo).
+    if (accion === 'finalizar' && gastosSinAsignarDe(key).length > 0) return
+    let re = realDe(key)
+    if (!re) {
+      // Centro de costo "Sin iniciar": se crea con la última versión del PPTO.
+      const g = grupoDe(key)
+      const vigente = g ? versionVigente(g.versions) : undefined
+      if (!vigente) return
+      re = { centroCosto: key, pptoId: vigente.id, asignaciones: [] }
+    }
+    const ahora = new Date().toISOString()
+    const historial = [
+      ...(re.historial ?? []),
+      { accion: accion === 'finalizar' ? 'finalizado' as const : 'reabierto' as const, por: currentUser.nombre, fecha: ahora },
+    ]
+    // Al finalizar la versión del PPTO queda fija (ya no sigue a la más nueva).
+    const nuevo: RealEjecutado = accion === 'finalizar'
+      ? { ...re, seguirUltima: false, finalizado: { por: currentUser.nombre, fecha: ahora }, historial }
+      : { ...re, finalizado: undefined, historial }
+    setReales(prev => [...prev.filter(r => r.centroCosto !== nuevo.centroCosto), nuevo])
+    await guardarRealEjecutado(nuevo)
+  }
+
+  async function confirmarFinalizacion() {
+    if (!confirmFin) return
+    setGuardandoFin(true)
+    try {
+      await aplicarFinalizacion(confirmFin.cc, confirmFin.accion)
+    } finally {
+      setGuardandoFin(false)
+      setConfirmFin(null)
+    }
+  }
+
   /* ---------- navegación ---------- */
   function volverALanding() { setVista('landing'); setCcSel(''); setAsignarRowId(null) }
   async function abrirCC(cc: string) {
@@ -332,7 +424,9 @@ export default function RealEjecutadoPage() {
   }
 
   async function asignar(rowId: string, gasto: GastoAsignable, monto: number) {
-    if (!realSel || !budgetSel || monto <= 0) return
+    // El monto va con signo: positivo suma al costo; negativo (devolución o
+    // crédito de un gasto negativo) lo resta.
+    if (!realSel || !budgetSel || monto === 0 || bloqueado) return
     const nueva: AsignacionGasto = { id: uid(), rowId, gastoId: gasto.id, modalidad: gasto.modalidad, monto, createdAt: new Date().toISOString() }
     const actualizado: RealEjecutado = { ...realSel, asignaciones: [...realSel.asignaciones, nueva] }
     await persistirReal(actualizado)
@@ -341,7 +435,7 @@ export default function RealEjecutadoPage() {
   }
 
   async function quitarAsignacion(asigId: string) {
-    if (!realSel || !budgetSel) return
+    if (!realSel || !budgetSel || bloqueado) return
     const asig = realSel.asignaciones.find(a => a.id === asigId)
     if (!asig) return
     const actualizado: RealEjecutado = { ...realSel, asignaciones: realSel.asignaciones.filter(a => a.id !== asigId) }
@@ -352,7 +446,7 @@ export default function RealEjecutadoPage() {
 
   /* ---------- filas adicionales (gasto real que no estaba en el PPTO inicial) ---------- */
   async function actualizarFila(rowId: string, patch: Partial<PptoRow>) {
-    if (!budgetSel) return
+    if (!budgetSel || bloqueado) return
     await fijarVersion()
     const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.map(r => r.id === rowId ? { ...r, ...patch } : r) }
     setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
@@ -360,7 +454,7 @@ export default function RealEjecutadoPage() {
   }
 
   async function agregarFilaAdicional() {
-    if (!budgetSel) return
+    if (!budgetSel || bloqueado) return
     await fijarVersion()
     const nueva: PptoRow = { ...mkRow('ADICIONALES', '', 0, 1, 1, 0, 0, ''), adicional: true }
     const actualizado: PptoBudget = { ...budgetSel, rows: [...budgetSel.rows, nueva] }
@@ -369,7 +463,7 @@ export default function RealEjecutadoPage() {
   }
 
   async function eliminarFilaAdicional(rowId: string) {
-    if (!budgetSel) return
+    if (!budgetSel || bloqueado) return
     await fijarVersion()
     const actualizado: PptoBudget = { ...budgetSel, rows: budgetSel.rows.filter(r => r.id !== rowId) }
     setBudgets(prev => prev.map(b => b.id === actualizado.id ? actualizado : b))
@@ -383,11 +477,69 @@ export default function RealEjecutadoPage() {
     return <div className="realej"><Styles /><div style={{ padding: 40, color: '#9aa398', fontSize: 14 }}>Cargando...</div></div>
   }
 
+  // Confirmación para finalizar o reabrir un Real Ejecutado (se usa en la lista y en el editor).
+  let modalFin: React.ReactNode = null
+  if (confirmFin) {
+    const finalizar = confirmFin.accion === 'finalizar'
+    const grupo = grupoDe(confirmFin.cc)
+    const sinAsignar = finalizar ? gastosSinAsignarDe(confirmFin.cc) : []
+    const noSePuede = sinAsignar.length > 0
+    const MAX_LISTA = 8
+    modalFin = (
+      <div className="modalbg" onClick={() => { if (!guardandoFin) setConfirmFin(null) }}>
+        <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 520 }}>
+          <div className="modaltitle">
+            {!finalizar ? 'Reabrir Real Ejecutado' : noSePuede ? 'No se puede finalizar todavía' : 'Marcar como finalizado'}
+          </div>
+          <p className="modaltxt"><b>{confirmFin.cc}</b> · {grupo?.latest.evento || 'Sin nombre'}</p>
+          {!finalizar ? (
+            <p className="modaltxt">Se desbloquea la edición y se quita la marca de finalizado. Queda registrado quién lo reabrió y cuándo.</p>
+          ) : noSePuede ? (
+            <>
+              <p className="modaltxt">
+                Todavía hay <b>{sinAsignar.length} {sinAsignar.length === 1 ? 'gasto' : 'gastos'} sin asignar</b> a una fila del presupuesto
+                (de Gespro o de Legalizaciones). Para finalizar tienen que estar todos asignados, incluidas las devoluciones o créditos en negativo.
+              </p>
+              <ul className="finlista">
+                {sinAsignar.slice(0, MAX_LISTA).map(g => (
+                  <li key={g.id}><span>{g.nombre}</span><span className="num">{money(g.saldo)}</span></li>
+                ))}
+              </ul>
+              {sinAsignar.length > MAX_LISTA && <p className="modaltxt">… y {sinAsignar.length - MAX_LISTA} más.</p>}
+            </>
+          ) : (
+            <p className="modaltxt">Todos los gastos están asignados. Al finalizarlo queda <b>bloqueado</b>: no se podrán asignar ni quitar gastos ni editar filas hasta que Francisco, Felipe o Hans lo reabran. Queda registrado quién lo finalizó y cuándo.</p>
+          )}
+          <div className="modalbtns">
+            {noSePuede ? (
+              <>
+                <button className="tb" onClick={() => setConfirmFin(null)}>Cerrar</button>
+                {vista === 'landing' && (
+                  <button className="tb primary" onClick={() => { const cc = confirmFin.cc; setConfirmFin(null); abrirCC(cc) }}>Abrir y asignar</button>
+                )}
+              </>
+            ) : (
+              <>
+                <button className="tb" onClick={() => setConfirmFin(null)} disabled={guardandoFin}>Cancelar</button>
+                <button className="tb primary" onClick={confirmarFinalizacion} disabled={guardandoFin}>
+                  {guardandoFin ? 'Guardando…' : finalizar ? 'Marcar como finalizado' : 'Reabrir'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   /* ==================== LANDING ==================== */
   if (vista === 'landing') {
+    const nFinalizados = grupos.filter(g => centrosFinalizados.has(g.centroCosto)).length
+    const hayFiltro = !!busqueda.trim() || filtroFin !== 'todos'
     return (
       <div className="realej">
         <Styles />
+        {modalFin}
         <div className="pheader">
           <div>
             <h1>Real Ejecutado</h1>
@@ -413,10 +565,19 @@ export default function RealEjecutadoPage() {
                 />
                 {busqueda && <button className="buscadorx" onClick={() => setBusqueda('')} title="Borrar búsqueda" aria-label="Borrar búsqueda">✕</button>}
               </div>
-              {busqueda.trim() && <span className="buscadorcuenta">{gruposFiltrados.length} de {grupos.length}</span>}
+              <div className="segfin" role="group" aria-label="Filtrar por revisión del Real Ejecutado">
+                <button className={filtroFin === 'todos' ? 'on' : ''} onClick={() => setFiltroFin('todos')}>Todos ({grupos.length})</button>
+                <button className={filtroFin === 'pendientes' ? 'on' : ''} onClick={() => setFiltroFin('pendientes')}>Pendientes ({grupos.length - nFinalizados})</button>
+                <button className={filtroFin === 'finalizados' ? 'on' : ''} onClick={() => setFiltroFin('finalizados')}>Finalizados ({nFinalizados})</button>
+              </div>
+              {hayFiltro && <span className="buscadorcuenta">{gruposFiltrados.length} de {grupos.length}</span>}
             </div>
             {gruposFiltrados.length === 0 ? (
-              <div className="empty">No hay centros de costo que coincidan con “{busqueda.trim()}”.</div>
+              <div className="empty">
+                {busqueda.trim()
+                  ? <>No hay centros de costo que coincidan con “{busqueda.trim()}”{filtroFin !== 'todos' ? ` entre los ${filtroFin}` : ''}.</>
+                  : `No hay centros de costo ${filtroFin}.`}
+              </div>
             ) : (
               <>
                 <div className="cclistheader">
@@ -424,20 +585,43 @@ export default function RealEjecutadoPage() {
                   <div className="ccf-proy">Proyecto</div>
                   <div className="ccf-cli">Cliente</div>
                   <div className="ccheadbadge">Estado</div>
+                  <div className="ccheadfin">Revisión</div>
                 </div>
                 <div className="cclist">
                   {gruposFiltrados.map(g => {
                     const re = realDe(g.centroCosto)
                     const version = re ? g.versions.find(v => v.id === re.pptoId) : null
+                    const fin = re?.finalizado
+                    const detalleFin = fin ? `Finalizado por ${fin.por} el ${fechaLarga(fin.fecha)}` : ''
                     return (
-                      <button key={g.centroCosto} className="cccard" onClick={() => abrirCC(g.centroCosto)}>
-                        <span className="ccnum ccf-cc">{g.centroCosto}</span>
-                        <span className="ccevento ccf-proy">{g.latest.evento || 'Sin nombre'}</span>
-                        <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
-                        {version
-                          ? <span className="ccbadge ok">Configurado · V{version.version}</span>
-                          : <span className="ccbadge pend">Sin iniciar</span>}
-                      </button>
+                      <div key={g.centroCosto} className={`cccard${fin ? ' cc-fin' : ''}`}>
+                        <button className="ccmain" onClick={() => abrirCC(g.centroCosto)}>
+                          <span className="ccnum ccf-cc">{g.centroCosto}</span>
+                          <span className="ccevento ccf-proy">{g.latest.evento || 'Sin nombre'}</span>
+                          <span className="cccliente ccf-cli">{g.latest.cliente || '—'}</span>
+                          {version
+                            ? <span className="ccbadge ok">Configurado · V{version.version}</span>
+                            : <span className="ccbadge pend">Sin iniciar</span>}
+                        </button>
+                        <div className="ccfin" title={detalleFin}>
+                          {puedeFinalizar ? (
+                            <label className="finchk">
+                              <input
+                                type="checkbox"
+                                checked={!!fin}
+                                onChange={() => setConfirmFin({ cc: g.centroCosto, accion: fin ? 'reabrir' : 'finalizar' })}
+                                aria-label={`Real ejecutado finalizado del centro de costo ${g.centroCosto}`}
+                              />
+                              <span>{fin ? 'Finalizado' : 'Pendiente'}</span>
+                            </label>
+                          ) : fin ? (
+                            <span className="finbadge">✓ Finalizado</span>
+                          ) : (
+                            <span className="finpend">Pendiente</span>
+                          )}
+                          {fin && <span className="finquien">{fin.por.split(' ')[0]} · {fechaCorta(fin.fecha)}</span>}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
@@ -482,6 +666,7 @@ export default function RealEjecutadoPage() {
   return (
     <div className="realej">
       <Styles />
+      {modalFin}
       <div className="breadcrumb">
         <button onClick={volverALanding}>Real Ejecutado</button> / {budgetSel.centroCosto} · V{budgetSel.version}
       </div>
@@ -490,7 +675,18 @@ export default function RealEjecutadoPage() {
           <h1>{budgetSel.evento || 'Sin nombre'}</h1>
           <p>{budgetSel.cliente || '—'} · Asigna gastos reales de Gespro y Legalizaciones a cada fila del presupuesto.</p>
         </div>
+        {puedeFinalizar && (
+          bloqueado
+            ? <button className="tb" onClick={() => setConfirmFin({ cc: realSel.centroCosto, accion: 'reabrir' })}>Reabrir para editar</button>
+            : <button className="tb primary" onClick={() => setConfirmFin({ cc: realSel.centroCosto, accion: 'finalizar' })}>✓ Marcar como finalizado</button>
+        )}
       </div>
+      {realSel.finalizado && (
+        <div className="finbanner">
+          <b>✓ Real ejecutado finalizado</b> por {realSel.finalizado.por} ({fechaLarga(realSel.finalizado.fecha)}). Está bloqueado: no se pueden asignar ni quitar gastos ni editar filas.{' '}
+          {puedeFinalizar ? 'Usa “Reabrir para editar” si necesitas cambiarlo.' : 'Si necesita cambios, pídele a Francisco, Felipe o Hans que lo reabran.'}
+        </div>
+      )}
 
       <div className="gridwrap">
         <table>
@@ -512,12 +708,12 @@ export default function RealEjecutadoPage() {
               return (
                 <tr key={r.id} className={r.adicional ? 'fila-adicional' : ''}>
                   <td className="col-proc">
-                    {r.adicional
+                    {r.adicional && !bloqueado
                       ? <input className="in-inline" value={r.proceso} onChange={e => actualizarFila(r.id, { proceso: e.target.value })} />
                       : r.proceso}
                   </td>
                   <td className="col-item">
-                    {r.adicional
+                    {r.adicional && !bloqueado
                       ? <input className="in-inline" placeholder="Descripción del gasto" value={r.item} onChange={e => actualizarFila(r.id, { item: e.target.value })} />
                       : r.item}
                   </td>
@@ -543,14 +739,16 @@ export default function RealEjecutadoPage() {
                         <div key={a.id} className={`asigchip${nombre ? '' : ' asigchip-huerfana'}`} title={nombre ? a.modalidad : 'Este gasto ya no existe en su módulo de origen: no suma al total, quítalo o asigna otro'}>
                           <span className="asignom">{nombre ?? '⚠ Gasto eliminado (no suma)'}</span>
                           <span className="asigmonto">{fmt(a.monto)}</span>
-                          <button className="asigx" onClick={() => quitarAsignacion(a.id)} title="Quitar">✕</button>
+                          {!bloqueado && <button className="asigx" onClick={() => quitarAsignacion(a.id)} title="Quitar">✕</button>}
                         </div>
                       )
                     })}
-                    <div className="filaacciones">
-                      <button className="addasig" onClick={() => setAsignarRowId(r.id)}>+ Asignar gasto</button>
-                      {r.adicional && <button className="quitarfila" onClick={() => eliminarFilaAdicional(r.id)}>Quitar fila</button>}
-                    </div>
+                    {!bloqueado && (
+                      <div className="filaacciones">
+                        <button className="addasig" onClick={() => setAsignarRowId(r.id)}>+ Asignar gasto</button>
+                        {r.adicional && <button className="quitarfila" onClick={() => eliminarFilaAdicional(r.id)}>Quitar fila</button>}
+                      </div>
+                    )}
                   </td>
                   <td className="r calc" style={{ color: pctEjecutado == null ? '#9aa398' : pctEjecutado <= 100 ? '#0e7a52' : '#b3261e', fontWeight: 700 }}>
                     {pctEjecutado != null ? pctEjecutado.toFixed(0) + '%' : '—'}
@@ -570,7 +768,7 @@ export default function RealEjecutadoPage() {
           </tfoot>
         </table>
       </div>
-      <button className="addfila" onClick={agregarFilaAdicional}>+ Agregar fila adicional</button>
+      {!bloqueado && <button className="addfila" onClick={agregarFilaAdicional}>+ Agregar fila adicional</button>}
 
       <div className="resumen">
         <div className="rescard">
@@ -611,7 +809,7 @@ export default function RealEjecutadoPage() {
       </div>
 
       {/* Modal: asignar gasto a la fila seleccionada */}
-      {asignarRowId && (
+      {asignarRowId && !bloqueado && (
         <div className="modalbg" onClick={() => setAsignarRowId(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
             <div className="modaltitle">Asignar gasto a esta fila</div>
@@ -627,14 +825,16 @@ export default function RealEjecutadoPage() {
                         <span className="gastomodalidad">{o.modalidad}</span>
                         <span className="gastonombre">{o.label}</span>
                         {o.sublabel && <span className="gastosublabel">{o.sublabel}</span>}
+                        {o.valor < 0 && <span className="gastocredito">Devolución o crédito: al asignarlo resta del costo de la fila</span>}
                         <span className="gastosaldo">Saldo {money(saldo)} de {money(o.valor)}</span>
                       </div>
-                      <input className="in" style={{ width: 110 }} placeholder="Monto"
+                      <input className="in" style={{ width: 110 }} placeholder={o.valor < 0 ? 'Monto (sin signo)' : 'Monto'}
                         value={montoInputs[o.id] ?? ''}
                         onChange={e => setMontoInputs(prev => ({ ...prev, [o.id]: e.target.value.replace(/\D/g, '') }))} />
                       <button className="tb primary" onClick={() => {
-                        const monto = Math.min(parseInt(montoInputs[o.id] || '0', 10) || 0, saldo)
-                        if (monto > 0) {
+                        // Se escribe el monto sin signo; el signo lo da el gasto (negativo = resta).
+                        const monto = Math.sign(saldo) * Math.min(parseInt(montoInputs[o.id] || '0', 10) || 0, Math.abs(saldo))
+                        if (monto !== 0) {
                           asignar(asignarRowId, o, monto)
                           setMontoInputs(prev => ({ ...prev, [o.id]: '' }))
                         }
@@ -679,8 +879,30 @@ function Styles() {
 .realej .cclistheader>div{font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em}
 .realej .ccheadbadge{flex-shrink:0;font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em;min-width:170px;text-align:right}
 .realej .cclist{display:flex;flex-direction:column;gap:10px}
-.realej .cccard{display:flex;align-items:center;gap:28px;text-align:left;background:#fff;border:1px solid #dde1d8;border-radius:12px;padding:14px 18px;cursor:pointer;font:inherit;width:100%}
+.realej .cccard{display:flex;align-items:center;background:#fff;border:1px solid #dde1d8;border-radius:12px;width:100%}
 .realej .cccard:hover{border-color:#0e7a52;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.realej .cccard.cc-fin{background:#f6fbf8;border-color:#bfe3d0}
+.realej .ccmain{display:flex;align-items:center;gap:28px;flex:1;min-width:0;text-align:left;background:none;border:none;padding:14px 0 14px 18px;cursor:pointer;font:inherit;color:inherit}
+.realej .ccheadfin{flex:0 0 150px;font-size:10px;font-weight:600;color:#9aa398;text-transform:uppercase;letter-spacing:.05em}
+.realej .ccfin{flex:0 0 150px;margin:0 18px 0 28px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.realej .finchk{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600;color:#6d746c}
+.realej .finchk input{width:16px;height:16px;accent-color:#0e7a52;cursor:pointer;margin:0}
+.realej .cc-fin .finchk{color:#065F46}
+.realej .finbadge{font-size:12px;font-weight:700;color:#065F46}
+.realej .finpend{font-size:12px;font-weight:600;color:#9aa398}
+.realej .finquien{font-size:11px;color:#6d746c;padding-left:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.realej .segfin{display:flex;border:1px solid #dde1d8;border-radius:10px;overflow:hidden;background:#fff;flex-shrink:0}
+.realej .segfin button{border:none;background:none;padding:9px 12px;font:inherit;font-size:13px;color:#6d746c;cursor:pointer;white-space:nowrap}
+.realej .segfin button+button{border-left:1px solid #dde1d8}
+.realej .segfin button.on{background:#ECFDF5;color:#065F46;font-weight:600}
+.realej .finbanner{background:#ECFDF5;border:1px solid #BBF7D0;color:#065F46;border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.5;margin-bottom:14px}
+.realej .finlista{list-style:none;margin:6px 0 8px;padding:8px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;max-height:240px;overflow-y:auto}
+.realej .finlista li{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#92400E;padding:3px 0}
+.realej .finlista li span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.realej .finlista li span.num{flex-shrink:0;font-weight:600}
+.realej .gastocredito{font-size:11px;font-weight:600;color:#B45309}
+.realej .modalbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.realej .tb:disabled{opacity:.6;cursor:default}
 .realej .ccf-cc{flex:0 0 100px;min-width:0}
 .realej .ccf-proy{flex:2;min-width:0}
 .realej .ccf-cli{flex:1.2;min-width:0}
